@@ -221,7 +221,7 @@ eventsListener botConfig req auth jobsQueue = do
 
   where
     -- WARNING! Watch also the "Network.HTTP.Client.ResponseTimeout"! It’s 30 seconds by default.
-    --          It will fail with an exception if this Matrix timeout is higher that that and after
+    --          It will fail with an exception if this Matrix timeout is higher than that and after
     --          some retries fail the application completely.
     timeout = T.Seconds 20
 
