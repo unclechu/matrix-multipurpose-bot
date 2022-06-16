@@ -1,0 +1,21 @@
+{
+  "react_to_users": [
+    {
+      "users_filter": [
+        "@username:matrix.org"
+      ],
+      "rooms_filter": [
+        "!xxxxxxxxxxxxxxxxxx:matrix.org"
+      ],
+      "leave_reactions": [
+        "🐓",
+        "🤡"
+      ]
+    },
+    {
+      "leave_reactions": [
+        "Everyone Everywhere"
+      ]
+    }
+  ]
+}

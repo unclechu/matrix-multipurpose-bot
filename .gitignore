@@ -1,0 +1,12 @@
+# Cabal build directories
+dist*
+
+# Nix artifacts
+result*
+
+# Direnv setup
+.envrc
+
+# File names for authentication and bot config from README usage examples
+auth.json
+bot-config.json

@@ -1,0 +1,2 @@
+watch_file matrix-bot.cabal
+use nix

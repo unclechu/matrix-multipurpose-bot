@@ -1,0 +1,83 @@
+cabal-version: 2.4
+name: matrix-bot
+version: 0.0.0.0
+
+synopsis: Matrix multipurpose bot
+
+-- A longer description of the package.
+-- description:
+
+-- A URL where users can report bugs.
+-- bug-reports:
+
+license: GPL-3.0-only
+license-file: LICENSE
+author: Viacheslav Lotsmanov
+maintainer: lotsmanov89@gmail.com
+
+copyright: (c) 2022 Viacheslav Lotsmanov
+
+-- category:
+
+extra-source-files:
+  README.md
+  -- CHANGELOG.md
+
+library
+  hs-source-dirs:
+    src
+  exposed-modules:
+    MatrixBot.AesonUtils
+    MatrixBot.App
+    MatrixBot.Auth
+    MatrixBot.Bot
+    MatrixBot.Log
+    MatrixBot.MatrixApi
+    MatrixBot.MatrixApi.Client
+    MatrixBot.Options
+    MatrixBot.SharedTypes
+  build-depends:
+    , aeson
+    , attoparsec
+    , base ^>=4.15.1.0
+    , base64
+    , bytestring
+    , containers
+    , fast-logger
+    , http-client
+    , http-client-tls
+    , http-types
+    , lens
+    , monad-logger
+    , mtl
+    , optparse-applicative
+    , QuickCheck
+    , safe-exceptions
+    , servant
+    , servant-client
+    , servant-client-core
+    , text
+    , time
+    , transformers
+    , unliftio
+    , unliftio-core
+    , uuid
+    , wai
+  ghc-options:
+    -Wall
+  default-language:
+    Haskell2010
+
+executable matrix-bot
+  hs-source-dirs:
+    app
+  main-is:
+    Main.hs
+  build-depends:
+    , base ^>=4.15.1.0
+    , matrix-bot
+  ghc-options:
+    -Wall
+    -threaded
+  default-language:
+    Haskell2010
