@@ -3,6 +3,7 @@
 {-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE InstanceSigs #-}
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE StandaloneDeriving #-}
@@ -151,6 +152,7 @@ instance ToJSON EventsResponse where toJSON = myGenericToJSON
 instance FromJSON EventsResponse where parseJSON = myGenericParseJSON
 
 
+-- | Room event of any type
 data ClientEvent
   = ClientEventMRoomMessage (ClientEventGeneric Identity) MRoomMessageClientEvent
   | ClientEventOther (ClientEventGeneric Maybe) Object
@@ -169,10 +171,7 @@ instance FromJSON ClientEvent where
         <*> parseJSON jsonInput
 
     Object obj → ClientEventOther <$> parseJSON jsonInput <*> pure obj
-    _ → failure
-
-    where
-      failure = typeMismatch (show . typeRep $ Proxy @a) jsonInput
+    _ → typeMismatch (show . typeRep $ Proxy @a) jsonInput
 
 
 -- In the spec https://spec.matrix.org/v1.3/client-server-api/#get_matrixclientv3events
@@ -203,6 +202,7 @@ instance FromJSON (ClientEventGeneric Identity) where parseJSON = myGenericParse
 instance FromJSON (ClientEventGeneric Maybe) where parseJSON = myGenericParseJSON
 
 
+-- | r.room.message event
 data MRoomMessageClientEvent = MRoomMessageClientEvent
   { mRoomMessageClientEventType ∷ MRoomMessageType
   , mRoomMessageClientEventContent ∷ MRoomMessageClientEventContent
@@ -213,14 +213,64 @@ instance ToJSON MRoomMessageClientEvent where toJSON = myGenericToJSON
 instance FromJSON MRoomMessageClientEvent where parseJSON = myGenericParseJSON
 
 
-data MRoomMessageClientEventContent = MRoomMessageClientEventContent
-  { mRoomMessageClientEventContentBody ∷ Text
-  , mRoomMessageClientEventContentMsgtype ∷ MTextType
+-- | r.room.message “content” field of any msgtype
+data MRoomMessageClientEventContent
+  = MRoomMessageClientEventContentMText MRoomMessageMTextMsgtypeClientEventContent
+  | MRoomMessageClientEventContentOther MRoomMessageOtherMsgtypeClientEventContent
+  deriving stock (Generic, Show, Eq)
+
+instance ToJSON MRoomMessageClientEventContent where
+  toJSON = \case
+    MRoomMessageClientEventContentMText x → toJSON x
+    MRoomMessageClientEventContentOther x → toJSON x
+
+instance FromJSON MRoomMessageClientEventContent where
+  parseJSON ∷ ∀a. a ~ MRoomMessageClientEventContent ⇒ Value → Parser a
+  parseJSON jsonInput = case jsonInput of
+    Object (KM.lookup "msgtype" → fmap (== toJSON MTextType) → Just True) →
+      MRoomMessageClientEventContentMText <$> parseJSON jsonInput
+
+    Object _ → MRoomMessageClientEventContentOther <$> parseJSON jsonInput
+    _ → typeMismatch (show . typeRep $ Proxy @a) jsonInput
+
+
+-- | m.room.message m.text msgtype
+data MRoomMessageMTextMsgtypeClientEventContent = MRoomMessageMTextMsgtypeClientEventContent
+  { mRoomMessageMTextMsgtypeClientEventContentMsgtype ∷ MTextType
+  , mRoomMessageMTextMsgtypeClientEventContentBody ∷ Text
   }
   deriving stock (Generic, Show, Eq)
 
-instance ToJSON MRoomMessageClientEventContent where toJSON = myGenericToJSON
-instance FromJSON MRoomMessageClientEventContent where parseJSON = myGenericParseJSON
+instance ToJSON MRoomMessageMTextMsgtypeClientEventContent where toJSON = myGenericToJSON
+instance FromJSON MRoomMessageMTextMsgtypeClientEventContent where parseJSON = myGenericParseJSON
+
+
+-- | m.room.message any other unmatched msgtype
+data MRoomMessageOtherMsgtypeClientEventContent = MRoomMessageOtherMsgtypeClientEventContent
+  { mRoomMessageOtherMsgtypeClientEventContentMsgtype ∷ Text
+  , mRoomMessageOtherMsgtypeClientEventContentBody ∷ Text
+  , mRoomMessageOtherMsgtypeClientEventContentOther ∷ Object
+  -- ^ All other fields
+  }
+  deriving stock (Generic, Show, Eq)
+
+instance ToJSON MRoomMessageOtherMsgtypeClientEventContent where
+  toJSON x = Object $ mconcat
+    [ KM.singleton "msgtype" . String . mRoomMessageOtherMsgtypeClientEventContentMsgtype $ x
+    , KM.singleton "body" . String . mRoomMessageOtherMsgtypeClientEventContentBody $ x
+    , mRoomMessageOtherMsgtypeClientEventContentOther x
+    ]
+
+instance FromJSON MRoomMessageOtherMsgtypeClientEventContent where
+  parseJSON ∷ ∀a. (a ~ MRoomMessageOtherMsgtypeClientEventContent) ⇒ Value → Parser a
+  parseJSON = withObject (show . typeRep $ Proxy @a) $ \v →
+    MRoomMessageOtherMsgtypeClientEventContent
+      <$> v .: msgtypeKey
+      <*> v .: bodyKey
+      <*> pure (KM.delete msgtypeKey . KM.delete bodyKey $ v)
+    where
+      msgtypeKey = "msgtype"
+      bodyKey = "body"
 
 
 -- * Send event
