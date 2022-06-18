@@ -7,6 +7,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE UnicodeSyntax #-}
 
 -- | Application startup module
@@ -28,7 +29,7 @@ import qualified Control.Exception.Safe as E
 import qualified Control.Monad.Logger as ML
 import qualified Control.Monad.Reader as MR
 
-import System.Exit (ExitCode (..), exitWith)
+import System.Exit (ExitCode (..))
 import System.IO
 
 import MatrixBot.Log
@@ -50,10 +51,15 @@ runApp ∷ AppM m ⇒ m ()
 runApp = go where
   go = withLogger . MR.runReaderT $ E.catch startApp exceptionHandler
 
-  exceptionHandler ∷ (MonadIO m, ML.MonadLogger m) ⇒ E.SomeException → m ()
+  exceptionHandler ∷ (MonadIO m, E.MonadThrow m, ML.MonadLogger m) ⇒ E.SomeException → m ()
   exceptionHandler e = do
-    logError . pack . ("Application failed with: " <>) . E.displayException $ e
-    liftIO . exitWith $ ExitFailure 1
+    case E.fromException @ExitCode e of
+      Just ExitSuccess → do
+        logDebug . pack . ("Application exits with: " <>) . E.displayException $ e
+        E.throwM e
+      _ → do
+        logError . pack . ("Application failed with: " <>) . E.displayException $ e
+        E.throwM e
 
   startApp ∷ (AppM m, ML.MonadLogger m) ⇒ m ()
   startApp = do
