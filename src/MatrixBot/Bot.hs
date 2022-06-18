@@ -78,8 +78,8 @@ startTheBot botConfig = do
 
   logDebug "Running bot threads (jobs queue handler and room events listener)…"
 
-  Async.runConcurrently $ ()
-    <$ Async.Concurrently (threadWrap $ jobsHandler req auth jobsQueue)
+  void . Async.runConcurrently
+    $ Async.Concurrently (threadWrap $ jobsHandler req auth jobsQueue)
     <* Async.Concurrently (threadWrap $ eventsListener botConfig req auth jobsQueue)
 
   where
