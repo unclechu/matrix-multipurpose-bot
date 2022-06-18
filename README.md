@@ -1,6 +1,6 @@
 # Matrix Bot
 
-Matrix multipurpose bot.
+[Matrix](https://matrix.org) multipurpose bot.
 
 **Work in progress!** It’s in development but it’s supposed to work.
 
@@ -32,6 +32,14 @@ cabal run matrix-bot -- --help
 ```
 
 This should print you the usage info.
+
+#### Running on Android
+
+This application was tested to work on Android when built using Nix (Nix-on-Droid).
+Just run `nix-build` as shown above and it supposed to work as usual.
+
+- https://f-droid.org/en/packages/com.termux.nix/
+- https://github.com/t184256/nix-on-droid
 
 ### Stack
 
