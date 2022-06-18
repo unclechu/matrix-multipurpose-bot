@@ -59,6 +59,7 @@ type BotM r m =
   , MR.MonadReader r m
   , ML.MonadLogger m
   , Auth.HasCredentials r
+  , T.HasRetryParams r
   )
 
 startTheBot ∷ BotM r m ⇒ BotConfig → m ()
@@ -316,8 +317,15 @@ eventsListener botConfig req auth jobsQueue = do
 --
 -- It fails immediately if "Servant.ClientError" is an authorization failure.
 -- Also fails immediately if it’s any other exception but "Servant.ClientError".
-retryOnClientError ∷ (E.MonadMask m, ML.MonadLogger m, MonadIO m) ⇒ m a → m a
-retryOnClientError m =
+retryOnClientError
+  ∷ (E.MonadMask m, ML.MonadLogger m, MonadIO m, MR.MonadReader r m, T.HasRetryParams r)
+  ⇒ m a
+  → m a
+retryOnClientError m = do
+  retriesLimit ← MR.asks $ T.unRetryLimit . L.view T.retryLimit
+  retryDelay ← MR.asks $ L.view T.retryDelay
+  let delay = Async.threadDelay . fromInteger . T.unMicroseconds . T.unRetryDelay $ retryDelay
+
   ($ retriesLimit) . fix $ \retry (pred → retryN) →
     m `E.catch` \(e ∷ Servant.ClientError) → do
       logError $ "Caught exception: " <> (pack . E.displayException) e
@@ -343,13 +351,8 @@ retryOnClientError m =
         , pack . show $ retriesLimit
         ]
 
-      logDebug $ "Retrying after " <> (pack . show . T.unSeconds) retryDelay <> " second(s)…"
+      logDebug $ "Retrying after " <> T.printRetryDelaySeconds retryDelay <> "…"
       delay
 
       logDebug "Waiting is done, retrying now…"
       retry retryN
-
-  where
-    retriesLimit = 10 ∷ Integer
-    retryDelay = T.Seconds 30
-    delay = Async.threadDelay . T.unMicroseconds . T.secondsToMicroseconds $ retryDelay

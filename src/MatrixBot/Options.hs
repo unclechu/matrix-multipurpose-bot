@@ -1,5 +1,7 @@
 {-# LANGUAGE DerivingStrategies #-}
+{-# LANGUAGE NumericUnderscores #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE UnicodeSyntax #-}
 
 -- | Application’s command-line interface
@@ -99,17 +101,21 @@ data StartOptions = StartOptions
   -- ^ Path to the file with credentials obtained via calling “auth” command
   , startOptionsBotConfigFile ∷ FilePath
   -- ^ Bot configuration JSON file
+  , startOptionsRetryLimit ∷ RetryLimit
+  -- ^ In case of Matrix API request exception how many times to retry before bot dies
+  , startOptionsRetryDelay ∷ RetryDelay
+  -- ^ In case of Matrix API request exception how long to wait before each retry
   }
   deriving stock (Eq, Show)
 
 startOptionsParser ∷ Parser StartOptions
 startOptionsParser = go where
-  go = StartOptions <$> credentialsFile <*> botConfigFile
+  go = StartOptions <$> credentialsFile <*> botConfigFile <*> retryLimit' <*> retryDelay'
 
   credentialsFile = strOption $ mconcat
     [ long "credentials"
     , short 'a'
-    , help "Credentials JSON file for bot authentication (call 'auth' command to get one)"
+    , help "Credentials JSON file for bot authentication (call “auth” command to get one)"
     , metavar "FILE"
     ]
 
@@ -119,6 +125,25 @@ startOptionsParser = go where
     , help "Bot configuration JSON file for bot authentication"
     , metavar "FILE"
     ]
+
+  retryLimit' = fmap RetryLimit . option auto $ mconcat
+    [ long "retry-limit"
+    , help "How many times to retry failed Matrix API call before bot dies"
+    , metavar "AMOUNT"
+    , value 10
+    , showDefault
+    ]
+
+  retryDelay' = option (RetryDelay <$> fractionalSeconds) $ mconcat
+    [ long "retry-delay"
+    , help "How long to wait before each retry for failed Matrix API call"
+    , metavar "SECONDS"
+    , value . RetryDelay . secondsToMicroseconds . Seconds $ 30
+    , showDefaultWith printRetryDelaySeconds
+    ]
+    where
+      fractionalSeconds ∷ ReadM Microseconds
+      fractionalSeconds = Microseconds . round . (* 1_000_000) <$> auto @Double
 
 
 -- * Parsing command-line arguments

@@ -1,4 +1,5 @@
 {-# LANGUAGE ConstraintKinds #-}
+{-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE LambdaCase #-}
@@ -15,10 +16,12 @@ module MatrixBot.App
 
 import Data.Aeson (eitherDecodeFileStrict)
 import Data.Aeson.Text (encodeToLazyText)
+import Data.String (IsString)
 import Data.Text (Text, pack)
 import Data.Text.Lazy (toStrict)
 import qualified Data.Text.IO as TextIO
 
+import Control.Lens.Lens (lens)
 import Control.Monad.IO.Class
 import Control.Monad.IO.Unlift (MonadUnliftIO)
 import qualified Control.Exception.Safe as E
@@ -93,8 +96,27 @@ runStart
 runStart opts = do
   logDebug "Initializing the bot…"
 
-  logDebug $
-    "Reading and parsing credentials " <> (quoted . O.startOptionsCredentialsFile) opts <> " file…"
+  let
+    retryLimit = O.startOptionsRetryLimit opts
+    retryDelay = O.startOptionsRetryDelay opts
+
+  logDebug $ mconcat
+    [ "Failed Matrix API call retry limit: "
+    , pack . show . T.unRetryLimit $ retryLimit
+    , " (amount of retries before bot fails completely)…"
+    ]
+
+  logDebug $ mconcat
+    [ "Failed Matrix API call retry interval: "
+    , T.printRetryDelaySeconds retryDelay
+    , "…"
+    ]
+
+  logDebug $ mconcat
+    [ "Reading and parsing credentials "
+    , quoted . O.startOptionsCredentialsFile $ opts
+    , " file…"
+    ]
 
   credentials ←
     either fail pure =<< liftIO (eitherDecodeFileStrict . O.startOptionsCredentialsFile $ opts)
@@ -106,17 +128,37 @@ runStart opts = do
 
   logDebug $ "MXID: " <> quotedMxid
 
-  logDebug $
-    "Reading and parsing bot configuration from " <> (quoted . O.startOptionsBotConfigFile) opts
-    <> " file…"
+  logDebug $ mconcat
+    [ "Reading and parsing bot configuration from "
+    , quoted . O.startOptionsBotConfigFile $ opts
+    , " file…"
+    ]
 
   botConfig ←
     either fail pure =<< liftIO (eitherDecodeFileStrict . O.startOptionsBotConfigFile $ opts)
 
-  Bot.startTheBot botConfig `MR.runReaderT` credentials
+  Bot.startTheBot botConfig `MR.runReaderT` BotEnv credentials retryLimit retryDelay
+
+
+-- * Types
+
+data BotEnv = BotEnv
+  { botEnvCredentials ∷ Auth.Credentials
+  , botEnvRetryLimit ∷ T.RetryLimit
+  , botEnvRetryDelay ∷ T.RetryDelay
+  }
+  deriving stock (Eq, Show)
+
+instance Auth.HasCredentials BotEnv where
+  credentials = lens botEnvCredentials $ \x v → x { botEnvCredentials = v }
+
+instance T.HasRetryParams BotEnv where
+  retryLimit = lens botEnvRetryLimit $ \x v → x { botEnvRetryLimit = v }
+  retryDelay = lens botEnvRetryDelay $ \x v → x { botEnvRetryDelay = v }
 
 
 -- * Helpers
 
-quoted ∷ Show a ⇒ a → Text
+-- | Wrap a string into quotes
+quoted ∷ (IsString s, Show s) ⇒ s → Text
 quoted = pack . show

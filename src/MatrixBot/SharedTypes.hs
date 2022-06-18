@@ -1,6 +1,7 @@
 {-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE InstanceSigs #-}
+{-# LANGUAGE NumericUnderscores #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
@@ -10,19 +11,25 @@
 -- | A set of generic types that can be used in different places/modules
 module MatrixBot.SharedTypes where
 
+import Control.Lens (Lens')
 import Data.Aeson
 import Data.Aeson.Types (Parser, typeMismatch)
 import Data.Proxy
+import Data.String (IsString (..))
 import Data.Text (Text)
 import Data.Typeable
 import Data.UUID (UUID)
 import Data.UUID.V4 (nextRandom)
+import Numeric.Natural
+import Text.Printf (printf)
 import qualified Data.Attoparsec.Text as AP
 
 import Control.Monad.IO.Class
 
 import Servant.API
 
+
+-- * Matrix entities
 
 newtype Username = Username { unUsername ∷ Text }
   deriving stock (Eq, Show)
@@ -156,26 +163,50 @@ genTransactionId = TransactionId <$> liftIO nextRandom
 
 -- * Time-related stuff
 
-newtype Milliseconds = Milliseconds { unMilliseconds ∷ Int }
+newtype Milliseconds = Milliseconds { unMilliseconds ∷ Integer }
   deriving stock (Eq, Show)
   deriving newtype (ToJSON, FromJSON, ToHttpApiData)
 
 
-newtype Seconds = Seconds { unSeconds ∷ Int }
+newtype Seconds = Seconds { unSeconds ∷ Integer }
   deriving stock (Eq, Show)
   deriving newtype (ToJSON, FromJSON)
 
 
-newtype Microseconds = Microseconds { unMicroseconds ∷ Int }
+newtype Microseconds = Microseconds { unMicroseconds ∷ Integer }
   deriving stock (Eq, Show)
   deriving newtype (ToJSON, FromJSON)
 
 
 secondsToMilliseconds ∷ Seconds → Milliseconds
-secondsToMilliseconds (Seconds x) = Milliseconds $ x * 1000
+secondsToMilliseconds (Seconds x) = Milliseconds $ x * 1_000
 
 millisecondsToMicroseconds ∷ Milliseconds → Microseconds
-millisecondsToMicroseconds (Milliseconds x) = Microseconds $ x * 1000
+millisecondsToMicroseconds (Milliseconds x) = Microseconds $ x * 1_000
 
 secondsToMicroseconds ∷ Seconds → Microseconds
 secondsToMicroseconds = millisecondsToMicroseconds . secondsToMilliseconds
+
+
+-- * Other types
+
+newtype RetryLimit = RetryLimit { unRetryLimit ∷ Natural }
+  deriving stock (Eq, Show)
+  deriving newtype (ToJSON, FromJSON)
+
+newtype RetryDelay = RetryDelay { unRetryDelay ∷ Microseconds }
+  deriving stock (Eq, Show)
+  deriving newtype (ToJSON, FromJSON)
+
+class HasRetryParams r where
+  retryLimit ∷ Lens' r RetryLimit
+  retryDelay ∷ Lens' r RetryDelay
+
+printRetryDelaySeconds ∷ IsString s ⇒ RetryDelay → s
+printRetryDelaySeconds
+  = fromString
+  . printf "%.03f second(s)"
+  . (/ 1_000_000)
+  . fromIntegral @Integer @Double
+  . unMicroseconds
+  . unRetryDelay
