@@ -150,7 +150,7 @@ jobsHandler req auth jobsQueue = do
 
     STM.atomically (STM.readTQueue jobsQueue)
       >>= (\x → x <$ logDebug ("Received a job to handle: " <> (pack . show) x))
-      >>= retryOnException . \case
+      >>= retryOnClientError . \case
             BotJobSendReaction transactionId roomId eventId reactionText →
               sendReaction transactionId roomId eventId reactionText
             BotJobSendMessage transactionId roomId msg →
@@ -210,7 +210,7 @@ eventsListener botConfig req auth jobsQueue = do
   ($ Nothing) . fix $ \again eventToken → do
     logDebug "Waiting for next room events chunk…"
 
-    eventsReponse ← retryOnException $ getNextEvents eventToken
+    eventsReponse ← retryOnClientError $ getNextEvents eventToken
     logDebug $ "Received next events chunk: " <> (pack . show) eventsReponse
 
     let events = Api.eventsResponseChunk eventsReponse
@@ -312,10 +312,12 @@ eventsListener botConfig req auth jobsQueue = do
 
 -- * Helpers
 
--- | Check if caught exception is not something after which retry would not make sense and retry
---   after an interval
-retryOnException ∷ (E.MonadMask m, ML.MonadLogger m, MonadIO m) ⇒ m a → m a
-retryOnException m =
+-- | Catch "Servant.ClientError" exception (which is probably some connectivity issue) and retry
+--
+-- It fails immediately if "Servant.ClientError" is an authorization failure.
+-- Also fails immediately if it’s any other exception but "Servant.ClientError".
+retryOnClientError ∷ (E.MonadMask m, ML.MonadLogger m, MonadIO m) ⇒ m a → m a
+retryOnClientError m =
   ($ retriesLimit) . fix $ \retry (pred → retryN) →
     m `E.catch` \(e ∷ Servant.ClientError) → do
       logError $ "Caught exception: " <> (pack . E.displayException) e
@@ -323,7 +325,7 @@ retryOnException m =
       case e of
         Servant.FailureResponse _req (Servant.responseStatusCode → Http.statusCode → 401) → do
           logError $
-            "It seems that Matrix authentication for the bot is no longer valid, "
+            "It seems that Matrix authorization for the bot is no longer valid, "
             <> "rethrowing exception immediately without any retries…"
 
           E.throwM e
