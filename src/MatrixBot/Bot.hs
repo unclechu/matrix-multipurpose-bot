@@ -20,6 +20,7 @@ import Data.Function
 import Data.Functor.Identity
 import Data.Proxy
 import Data.Text (Text, pack)
+import Numeric.Natural
 import qualified Data.List.NonEmpty as NE
 
 import Control.Monad (void, forever, when, (<=<), forM_)
@@ -322,7 +323,7 @@ retryOnClientError
   ⇒ m a
   → m a
 retryOnClientError m = do
-  retriesLimit ← MR.asks $ T.unRetryLimit . L.view T.retryLimit
+  retriesLimit ← MR.asks $ fromIntegral @Natural @Integer . T.unRetryLimit . L.view T.retryLimit
   retryDelay ← MR.asks $ L.view T.retryDelay
   let delay = Async.threadDelay . fromInteger . T.unMicroseconds . T.unRetryDelay $ retryDelay
 
