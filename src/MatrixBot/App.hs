@@ -105,18 +105,30 @@ runStart opts = do
   let
     retryLimit = O.startOptionsRetryLimit opts
     retryDelay = O.startOptionsRetryDelay opts
+    eventTokenFile = O.startOptionsEventTokenFile opts
 
   logDebug $ mconcat
     [ "Failed Matrix API call retry limit: "
     , pack . show . T.unRetryLimit $ retryLimit
-    , " (amount of retries before bot fails completely)…"
+    , " (amount of retries before bot fails completely)"
     ]
 
   logDebug $ mconcat
     [ "Failed Matrix API call retry interval: "
     , T.printRetryDelaySeconds retryDelay
-    , "…"
     ]
+
+  case eventTokenFile of
+    Nothing →
+      logWarn $ mconcat
+        [ "There’s no event token file provided, "
+        , "will start listening from next following events"
+        ]
+    Just x →
+      logDebug $ mconcat
+        [ "Event token file where to read from and save to last event token that is used "
+        , "as a starting point to get next events from: ", pack . show $ x
+        ]
 
   logDebug $ mconcat
     [ "Reading and parsing credentials "
@@ -143,7 +155,7 @@ runStart opts = do
   botConfig ←
     either fail pure =<< liftIO (eitherDecodeFileStrict . O.startOptionsBotConfigFile $ opts)
 
-  Bot.startTheBot botConfig `MR.runReaderT` BotEnv credentials retryLimit retryDelay
+  Bot.startTheBot eventTokenFile botConfig `MR.runReaderT` BotEnv credentials retryLimit retryDelay
 
 
 -- * Types

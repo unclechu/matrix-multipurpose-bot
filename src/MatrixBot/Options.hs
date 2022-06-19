@@ -105,12 +105,20 @@ data StartOptions = StartOptions
   -- ^ In case of Matrix API request exception how many times to retry before bot dies
   , startOptionsRetryDelay ∷ RetryDelay
   -- ^ In case of Matrix API request exception how long to wait before each retry
+  , startOptionsEventTokenFile ∷ Maybe FilePath
+  -- ^ Path to a JSON file that contains last event token to start listening events from (when
+  --   application starts it reads from this file, when it receives new events it writes to it)
   }
   deriving stock (Eq, Show)
 
 startOptionsParser ∷ Parser StartOptions
 startOptionsParser = go where
-  go = StartOptions <$> credentialsFile <*> botConfigFile <*> retryLimit' <*> retryDelay'
+  go = StartOptions
+    <$> credentialsFile
+    <*> botConfigFile
+    <*> retryLimit'
+    <*> retryDelay'
+    <*> eventToken
 
   credentialsFile = strOption $ mconcat
     [ long "credentials"
@@ -144,6 +152,18 @@ startOptionsParser = go where
     where
       fractionalSeconds ∷ ReadM Microseconds
       fractionalSeconds = Microseconds . round . (* 1_000_000) <$> auto @Double
+
+  eventToken = option (Just <$> str) $ mconcat
+    [ long "event-token"
+    , short 'e'
+    , help $ unwords
+        [ "Optional JSON file to read last event token from to start listening for new events from"
+        , "and where to save last event token to"
+        , "(useful to not loose events from the time when the bot was offline)"
+        ]
+    , metavar "FILE"
+    , value Nothing
+    ]
 
 
 -- * Parsing command-line arguments

@@ -10,6 +10,8 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UnicodeSyntax #-}
 {-# LANGUAGE ViewPatterns #-}
+{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
+{-# HLINT ignore "Redundant <&>" #-}
 
 module MatrixBot.Bot where
 
@@ -17,13 +19,15 @@ import GHC.Generics
 
 import Data.Aeson
 import Data.Function
+import Data.Functor
 import Data.Functor.Identity
 import Data.Proxy
 import Data.Text (Text, pack)
 import Numeric.Natural
+import qualified Data.ByteString as BS
 import qualified Data.List.NonEmpty as NE
 
-import Control.Monad (void, forever, when, (<=<), forM_)
+import Control.Monad (forever, when, (<=<), forM_)
 import Control.Monad.IO.Class
 import Control.Monad.IO.Unlift (MonadUnliftIO)
 import Control.Monad.Trans.Class (lift)
@@ -36,6 +40,8 @@ import qualified Control.Monad.Trans.Except as Except
 import qualified UnliftIO.Async as Async
 import qualified UnliftIO.Concurrent as Async
 import qualified UnliftIO.STM as STM
+
+import System.Directory (doesFileExist)
 
 import qualified Network.HTTP.Types.Status as Http
 
@@ -63,8 +69,8 @@ type BotM r m =
   , T.HasRetryParams r
   )
 
-startTheBot ∷ BotM r m ⇒ BotConfig → m ()
-startTheBot botConfig = do
+startTheBot ∷ BotM r m ⇒ Maybe FilePath → BotConfig → m ()
+startTheBot eventTokenFile botConfig = do
   logDebug "Starting the bot…"
   logDebug $ "Bot configuration: " <> (pack . show) botConfig
   credentials ← MR.asks $ L.view Auth.credentials
@@ -82,7 +88,7 @@ startTheBot botConfig = do
 
   void . Async.runConcurrently
     $ Async.Concurrently (threadWrap $ jobsHandler req auth jobsQueue)
-    <* Async.Concurrently (threadWrap $ eventsListener botConfig req auth jobsQueue)
+    <* Async.Concurrently (threadWrap $ eventsListener eventTokenFile botConfig req auth jobsQueue)
 
   where
     startupSmokeTest req auth = do
@@ -199,17 +205,50 @@ jobsHandler req auth jobsQueue = do
 eventsListener
   ∷ ∀ r m
   . BotM r m
-  ⇒ BotConfig
+  ⇒ Maybe FilePath
+  → BotConfig
   → Api.MatrixApiClient
   → AuthenticatedRequest (AuthProtect "access-token")
   → BotJobsQueue
   → m ()
-eventsListener botConfig req auth jobsQueue = do
+eventsListener eventTokenFile botConfig req auth jobsQueue = do
   logDebug "Starting Matrix rooms events listener…"
+
+  initialEventToken ←
+    case eventTokenFile of
+      Nothing → do
+        logWarn "No event token file provided, listening starting from next following events…"
+        pure Nothing
+      Just file → do
+        logDebug $ mconcat
+          [ "Checking if ", pack . show $ eventTokenFile
+          , " token file exists to read initial event token from…"
+          ]
+
+        exists ← liftIO (doesFileExist file)
+
+        if not exists
+        then
+          (Nothing <$) . logDebug $ mconcat
+            [ "Event token file ", pack . show $ eventTokenFile
+            , " does not exist, listening starting from next following events…"
+            ]
+        else
+          liftIO (BS.readFile file) <&> eitherDecodeStrict >>= \case
+            Right x →
+              (Just x <$) . logDebug $ mconcat
+                [ "Read and parsed last event token from ", pack . show $ file
+                , " file, listening for next events starting from: ", pack . show . T.unEventToken $ x
+                ]
+            Left e →
+              fail $ mconcat
+                [ "Failed to read event token from ", show file
+                , " event token file: ", e
+                ]
 
   logDebug "Listening for events from all rooms filtering them accordingly to the bot config…"
 
-  ($ Nothing) . fix $ \again eventToken → do
+  ($ initialEventToken) . fix $ \again eventToken → do
     logDebug "Waiting for next room events chunk…"
 
     eventsReponse ← retryOnClientError $ getNextEvents eventToken
@@ -219,7 +258,26 @@ eventsListener botConfig req auth jobsQueue = do
     logDebug $ "Handling " <> (pack . show . length) events <> " events…"
     mapM_ handleEvent events
 
-    again . Just . Api.eventsResponseEnd $ eventsReponse
+    let nextEventToken = Api.eventsResponseEnd eventsReponse
+
+    case eventTokenFile of
+      Nothing → pure ()
+      Just _ | eventToken == Just nextEventToken →
+        logDebug $ mconcat
+          [ "Received event token ", pack . show . T.unEventToken $ nextEventToken
+          , "didn’t change since the last time, no need to save it again, skipping save…"
+          ]
+      Just _ | null events →
+        logDebug
+          "Received list of events is empty, skipping save of event token to event token file…"
+      Just file → do
+        logDebug $ mconcat
+          [ "Saving received event token ", pack . show . T.unEventToken $ nextEventToken
+          , " to ", pack . show $ eventTokenFile, " event token file…"
+          ]
+        liftIO $ encodeFile file nextEventToken
+
+    again . Just $ nextEventToken
 
   where
     -- WARNING! Watch also the "Network.HTTP.Client.ResponseTimeout"! It’s 30 seconds by default.

@@ -10,3 +10,5 @@ result*
 # File names for authentication and bot config from README usage examples
 auth.json
 bot-config.json
+
+event-token.json
