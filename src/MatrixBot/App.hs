@@ -171,6 +171,8 @@ runSendMessage
 runSendMessage opts = do
   logDebug "Running send message command…"
 
+  let roomId = O.sendMessageOptionsRoomId opts
+
   credentials ∷ Auth.Credentials ← do
     logDebug $ mconcat
       [ "Reading and parsing credentials "
@@ -179,6 +181,20 @@ runSendMessage opts = do
       ]
 
     either fail pure =<< liftIO (eitherDecodeFileStrict . O.sendMessageOptionsCredentialsFile $ opts)
+
+  message ←
+    case O.sendMessageOptionsMessage opts of
+      Left x →
+        (x <$) . logDebug $ mconcat
+          [ "Message to send to ", pack . show . T.printRoomId $ roomId
+          , " room was provided as an option argument"
+          ]
+      Right file → do
+        logDebug $ mconcat
+          [ "Reading message to send to ", pack . show . T.printRoomId $ roomId
+          , " room from ", pack . show $ file, " file…"
+          ]
+        liftIO $ TextIO.readFile file
 
   flip MR.runReaderT credentials $
     Bot.withReqAndAuth $ \req auth → do
@@ -196,13 +212,7 @@ runSendMessage opts = do
               , pack . show . T.unTransactionId $ txid
               ]
 
-      response ←
-        Bot.sendMessage
-          req
-          auth
-          transactionId
-          (O.sendMessageOptionsRoomId opts)
-          (O.sendMessageOptionsMessage opts)
+      response ← Bot.sendMessage req auth transactionId roomId message
 
       logDebug "Printing response and transaction ID to stdout…"
 

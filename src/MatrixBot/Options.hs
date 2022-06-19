@@ -185,7 +185,8 @@ startOptionsParser = go where
 data SendMessageOptions = SendMessageOptions
   { sendMessageOptionsCredentialsFile ∷ FilePath
   , sendMessageOptionsRoomId ∷ RoomId
-  , sendMessageOptionsMessage ∷ Text
+  , sendMessageOptionsMessage ∷ Either Text FilePath
+  -- ^ Either as plan value or a file to read it from (e.g. /dev/stdin)
   , sendMessageOptionsTransactionId ∷ Maybe TransactionId
   }
   deriving stock (Eq, Show)
@@ -212,11 +213,21 @@ sendMessageOptionsParser = go where
     , metavar "ROOM_ID"
     ]
 
-  message = strOption $ mconcat
+  message = fmap Left messageValue <|> fmap Right messageFile
+
+  messageValue = strOption $ mconcat
     [ long "message"
     , short 'm'
     , help "Text message to send to the room"
     , metavar "TEXT"
+    ]
+
+  messageFile = strOption $ mconcat
+    [ long "message-file"
+    , short 'f'
+    , help "Path to a file to read text message from to send it to the room (e.g. /dev/stdin)"
+    , value "/dev/stdin"
+    , showDefault
     ]
 
   transactionId = option (Just . TransactionId <$> maybeReader fromString) $ mconcat

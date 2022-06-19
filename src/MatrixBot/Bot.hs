@@ -173,7 +173,7 @@ sendReaction
 sendReaction req auth transactionId roomId eventId reactionText = do
   logDebug $ mconcat
     [ "Sending reaction ", pack . show $ reactionText
-    , " to room ", T.printRoomId roomId
+    , " to room ", pack . show . T.printRoomId $ roomId
     , " for ", T.unEventId eventId
     , "…"
     ]
@@ -199,7 +199,7 @@ sendMessage
 sendMessage req auth transactionId roomId msg = do
   logDebug $ mconcat
     [ "Sending message ", pack . show $ msg
-    , " to room ", T.printRoomId roomId
+    , " to room ", pack . show . T.printRoomId $ roomId
     , "…"
     ]
 
