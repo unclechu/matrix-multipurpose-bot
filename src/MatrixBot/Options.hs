@@ -96,6 +96,7 @@ authOptionsParser = go where
     , help "Path to a file containing password (e.g. /dev/stdin)"
     , value "/dev/stdin"
     , showDefault
+    , metavar "FILE"
     ]
 
   outputFile = strOption $ mconcat
@@ -228,6 +229,7 @@ sendMessageOptionsParser = go where
     , help "Path to a file to read text message from to send it to the room (e.g. /dev/stdin)"
     , value "/dev/stdin"
     , showDefault
+    , metavar "FILE"
     ]
 
   transactionId = option (Just . TransactionId <$> maybeReader fromString) $ mconcat
