@@ -7,7 +7,8 @@
 -- | Application’s command-line interface
 module MatrixBot.Options where
 
-import Data.Text (pack)
+import Data.Text (Text, pack)
+import Data.UUID (fromString)
 import qualified Data.Attoparsec.Text as AP
 
 import Control.Monad.IO.Class
@@ -22,6 +23,7 @@ import MatrixBot.SharedTypes
 data AppCommand
   = AppCommandAuth AuthOptions
   | AppCommandStart StartOptions
+  | AppCommandSendMessage SendMessageOptions
 
 appCommandParserInfo ∷ ParserInfo AppCommand
 appCommandParserInfo
@@ -30,7 +32,7 @@ appCommandParserInfo
 
 appCommandParser ∷ Parser AppCommand
 appCommandParser = go where
-  go = hsubparser $ authCommand <> startCommand
+  go = hsubparser $ authCommand <> startCommand <> sendMessageCommand
 
   authCommand ∷ Mod CommandFields AppCommand
   authCommand
@@ -48,6 +50,16 @@ appCommandParser = go where
         (AppCommandStart <$> startOptionsParser)
         (progDesc "Start the bot daemon")
 
+  sendMessageCommand ∷ Mod CommandFields AppCommand
+  sendMessageCommand
+    = command "send-message"
+    $ info
+        (AppCommandSendMessage <$> sendMessageOptionsParser)
+        (progDesc "Send text message to a room\
+                  \ (will write a JSON object to stdout with transaction ID and server response)")
+
+
+-- * Authorization
 
 data AuthOptions = AuthOptions
   { authOptionsMxid ∷ Mxid
@@ -95,6 +107,8 @@ authOptionsParser = go where
     , showDefault
     ]
 
+
+-- * Bot start
 
 data StartOptions = StartOptions
   { startOptionsCredentialsFile ∷ FilePath
@@ -162,6 +176,57 @@ startOptionsParser = go where
         , "(useful to not loose events from the time when the bot was offline)"
         ]
     , metavar "FILE"
+    , value Nothing
+    ]
+
+
+-- * Send message command options
+
+data SendMessageOptions = SendMessageOptions
+  { sendMessageOptionsCredentialsFile ∷ FilePath
+  , sendMessageOptionsRoomId ∷ RoomId
+  , sendMessageOptionsMessage ∷ Text
+  , sendMessageOptionsTransactionId ∷ Maybe TransactionId
+  }
+  deriving stock (Eq, Show)
+
+sendMessageOptionsParser ∷ Parser SendMessageOptions
+sendMessageOptionsParser = go where
+  go = SendMessageOptions
+    <$> credentialsFile
+    <*> roomId
+    <*> message
+    <*> transactionId
+
+  credentialsFile = strOption $ mconcat
+    [ long "credentials"
+    , short 'a'
+    , help "Credentials JSON file for authentication (call “auth” command to get one)"
+    , metavar "FILE"
+    ]
+
+  roomId = option (eitherReader $ AP.parseOnly roomIdParser . pack) $ mconcat
+    [ long "room-id"
+    , short 'r'
+    , help "Room identifier (e.g. !ffffffffffffffffff:matrix.org) where to send text message to"
+    , metavar "ROOM_ID"
+    ]
+
+  message = strOption $ mconcat
+    [ long "message"
+    , short 'm'
+    , help "Text message to send to the room"
+    , metavar "TEXT"
+    ]
+
+  transactionId = option (Just . TransactionId <$> maybeReader fromString) $ mconcat
+    [ long "transaction-id"
+    , short 't'
+    , help $ unwords
+        [ "Transaction ID (any random UUID) for atomicity of the request"
+        , "(if not provided new random one will be generated)"
+        ]
+    , metavar "UUID"
     , value Nothing
     ]
 

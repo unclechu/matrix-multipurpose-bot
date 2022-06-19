@@ -27,7 +27,7 @@ import Numeric.Natural
 import qualified Data.ByteString as BS
 import qualified Data.List.NonEmpty as NE
 
-import Control.Monad (forever, when, (<=<), forM_)
+import Control.Monad (forever, when, forM_)
 import Control.Monad.IO.Class
 import Control.Monad.IO.Unlift (MonadUnliftIO)
 import Control.Monad.Trans.Class (lift)
@@ -73,22 +73,16 @@ startTheBot ∷ BotM r m ⇒ Maybe FilePath → BotConfig → m ()
 startTheBot eventTokenFile botConfig = do
   logDebug "Starting the bot…"
   logDebug $ "Bot configuration: " <> (pack . show) botConfig
-  credentials ← MR.asks $ L.view Auth.credentials
 
-  logDebug $
-    "Creating request handler for "
-    <> (pack . show . T.unHomeServer . Auth.credentialsHomeServer) credentials <> "…"
+  withReqAndAuth $ \req auth → do
+    startupSmokeTest req auth
+    jobsQueue ← STM.newTQueueIO
 
-  req ← Api.mkMatrixApiClient . Auth.credentialsHomeServer $ credentials
-  auth ← Auth.getAuthenticatedMatrixRequest
-  startupSmokeTest req auth
-  jobsQueue ← STM.newTQueueIO
+    logDebug "Running bot threads (jobs queue handler and room events listener)…"
 
-  logDebug "Running bot threads (jobs queue handler and room events listener)…"
-
-  void . Async.runConcurrently
-    $ Async.Concurrently (threadWrap $ jobsHandler req auth jobsQueue)
-    <* Async.Concurrently (threadWrap $ eventsListener eventTokenFile botConfig req auth jobsQueue)
+    void . Async.runConcurrently
+      $ Async.Concurrently (threadWrap $ jobsHandler req auth jobsQueue)
+      <* Async.Concurrently (threadWrap $ eventsListener eventTokenFile botConfig req auth jobsQueue)
 
   where
     startupSmokeTest req auth = do
@@ -160,44 +154,69 @@ jobsHandler req auth jobsQueue = do
       >>= (\x → x <$ logDebug ("Received a job to handle: " <> (pack . show) x))
       >>= retryOnClientError . \case
             BotJobSendReaction transactionId roomId eventId reactionText →
-              sendReaction transactionId roomId eventId reactionText
+              void $ sendReaction req auth transactionId roomId eventId reactionText
             BotJobSendMessage transactionId roomId msg →
-              sendMessage transactionId roomId msg
+              void $ sendMessage req auth transactionId roomId msg
 
-  where
-    logResponse ∷ Api.EventResponse → m ()
-    logResponse = logDebug . pack . show . Api.eventResponseEventId
 
-    sendReaction ∷ T.TransactionId → T.RoomId → T.EventId → Text → m ()
-    sendReaction transactionId roomId eventId reactionText = do
-      logDebug $ mconcat
-        [ "Sending reaction ", pack . show $ reactionText
-        , " to room ", T.printRoomId roomId
-        , " for ", T.unEventId eventId
-        , "…"
-        ]
+-- ** Bot job handlers
 
-      logResponse <=< Api.runMatrixApiClient' req $
-        client @(Api.SendEventApi Api.MReactionType) Proxy auth
-          roomId
-          Api.MReactionType
-          transactionId
-          (Api.MReactionContent $ Api.RelatesTo eventId reactionText Api.MAnnotationType)
+sendReaction
+  ∷ (MonadIO m, E.MonadThrow m, ML.MonadLogger m)
+  ⇒ Api.MatrixApiClient
+  → AuthenticatedRequest (AuthProtect "access-token")
+  → T.TransactionId
+  → T.RoomId
+  → T.EventId
+  → Text
+  → m Api.EventResponse
+sendReaction req auth transactionId roomId eventId reactionText = do
+  logDebug $ mconcat
+    [ "Sending reaction ", pack . show $ reactionText
+    , " to room ", T.printRoomId roomId
+    , " for ", T.unEventId eventId
+    , "…"
+    ]
 
-    sendMessage ∷ T.TransactionId → T.RoomId → Text → m ()
-    sendMessage transactionId roomId msg = do
-      logDebug $ mconcat
-        [ "Sending message ", pack . show $ msg
-        , " to room ", T.printRoomId roomId
-        , "…"
-        ]
+  response ← Api.runMatrixApiClient' req $
+    client @(Api.SendEventApi Api.MReactionType) Proxy auth
+      roomId
+      Api.MReactionType
+      transactionId
+      (Api.MReactionContent $ Api.RelatesTo eventId reactionText Api.MAnnotationType)
 
-      logResponse <=< Api.runMatrixApiClient' req $
-        client @(Api.SendEventApi Api.MRoomMessageType) Proxy auth
-          roomId
-          Api.MRoomMessageType
-          transactionId
-          (Api.MRoomMessageContent Api.MTextType msg)
+  response <$ logEventResponse response
+
+
+sendMessage
+  ∷ (MonadIO m, E.MonadThrow m, ML.MonadLogger m)
+  ⇒ Api.MatrixApiClient
+  → AuthenticatedRequest (AuthProtect "access-token")
+  → T.TransactionId
+  → T.RoomId
+  → Text
+  → m Api.EventResponse
+sendMessage req auth transactionId roomId msg = do
+  logDebug $ mconcat
+    [ "Sending message ", pack . show $ msg
+    , " to room ", T.printRoomId roomId
+    , "…"
+    ]
+
+  response ← Api.runMatrixApiClient' req $
+    client @(Api.SendEventApi Api.MRoomMessageType) Proxy auth
+      roomId
+      Api.MRoomMessageType
+      transactionId
+      (Api.MRoomMessageContent Api.MTextType msg)
+
+  response <$ logEventResponse response
+
+
+-- *** Bot job handlers helpers
+
+logEventResponse ∷ ML.MonadLogger m ⇒ Api.EventResponse → m ()
+logEventResponse = logDebug . pack . show . Api.eventResponseEventId
 
 
 -- * Bot events listening
@@ -415,3 +434,21 @@ retryOnClientError m = do
 
       logDebug "Waiting is done, retrying now…"
       retry retryN
+
+
+withReqAndAuth
+  ∷ (MonadIO m, E.MonadThrow m, ML.MonadLogger m, MR.MonadReader r m, Auth.HasCredentials r)
+  ⇒ (Api.MatrixApiClient → AuthenticatedRequest (AuthProtect "access-token") → m a)
+  → m a
+withReqAndAuth m = do
+  credentials ← MR.asks $ L.view Auth.credentials
+
+  logDebug $ mconcat
+    [ "Creating request handler for "
+    , pack . show . T.unHomeServer . Auth.credentialsHomeServer $ credentials
+    , "…"
+    ]
+
+  req ← Api.mkMatrixApiClient . Auth.credentialsHomeServer $ credentials
+  auth ← Auth.getAuthenticatedMatrixRequest
+  m req auth

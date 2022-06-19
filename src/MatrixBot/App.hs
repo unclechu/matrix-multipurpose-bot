@@ -1,4 +1,5 @@
 {-# LANGUAGE ConstraintKinds #-}
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
@@ -15,7 +16,9 @@ module MatrixBot.App
      ( runApp
      ) where
 
-import Data.Aeson (eitherDecodeFileStrict)
+import GHC.Generics (Generic)
+
+import Data.Aeson (ToJSON (..), FromJSON (..), eitherDecodeFileStrict)
 import Data.Aeson.Text (encodeToLazyText)
 import Data.String (IsString)
 import Data.Text (Text, pack)
@@ -32,7 +35,9 @@ import qualified Control.Monad.Reader as MR
 import System.Exit (ExitCode (..))
 import System.IO
 
+import MatrixBot.AesonUtils (myGenericToJSON, myGenericParseJSON)
 import MatrixBot.Log
+import MatrixBot.MatrixApi (EventResponse)
 import qualified MatrixBot.Auth as Auth
 import qualified MatrixBot.Bot as Bot
 import qualified MatrixBot.Options as O
@@ -69,6 +74,7 @@ runApp = go where
     O.parseAppCommand >>= \case
       O.AppCommandAuth opts → runAuth opts
       O.AppCommandStart opts → runStart opts
+      O.AppCommandSendMessage opts → runSendMessage opts
 
 
 runAuth ∷ (MonadIO m, MonadFail m, E.MonadThrow m, ML.MonadLogger m) ⇒ O.AuthOptions → m ()
@@ -158,6 +164,56 @@ runStart opts = do
   Bot.startTheBot eventTokenFile botConfig `MR.runReaderT` BotEnv credentials retryLimit retryDelay
 
 
+runSendMessage
+  ∷ (MonadIO m, MonadFail m, E.MonadThrow m, ML.MonadLogger m)
+  ⇒ O.SendMessageOptions
+  → m ()
+runSendMessage opts = do
+  logDebug "Running send message command…"
+
+  credentials ∷ Auth.Credentials ← do
+    logDebug $ mconcat
+      [ "Reading and parsing credentials "
+      , quoted . O.sendMessageOptionsCredentialsFile $ opts
+      , " file…"
+      ]
+
+    either fail pure =<< liftIO (eitherDecodeFileStrict . O.sendMessageOptionsCredentialsFile $ opts)
+
+  flip MR.runReaderT credentials $
+    Bot.withReqAndAuth $ \req auth → do
+      transactionId ←
+        case O.sendMessageOptionsTransactionId opts of
+          Nothing → do
+            txid ← T.genTransactionId
+            (txid <$) . logDebug $ mconcat
+              [ "No transaction ID was provided in the command-line options, generated new one: "
+              , pack . show . T.unTransactionId $ txid
+              ]
+          Just txid → do
+            (txid <$) . logDebug $ mconcat
+              [ "Using transaction ID provided in the command-line options: "
+              , pack . show . T.unTransactionId $ txid
+              ]
+
+      response ←
+        Bot.sendMessage
+          req
+          auth
+          transactionId
+          (O.sendMessageOptionsRoomId opts)
+          (O.sendMessageOptionsMessage opts)
+
+      logDebug "Printing response and transaction ID to stdout…"
+
+      liftIO . TextIO.putStrLn . toStrict . encodeToLazyText $ SendMessageResponse
+        { sendMessageResponseTransactionId = transactionId
+        , sendMessageResponseResponse = response
+        }
+
+      logDebug "Success!"
+
+
 -- * Types
 
 data BotEnv = BotEnv
@@ -173,6 +229,16 @@ instance Auth.HasCredentials BotEnv where
 instance T.HasRetryParams BotEnv where
   retryLimit = lens botEnvRetryLimit $ \x v → x { botEnvRetryLimit = v }
   retryDelay = lens botEnvRetryDelay $ \x v → x { botEnvRetryDelay = v }
+
+
+data SendMessageResponse = SendMessageResponse
+  { sendMessageResponseTransactionId ∷ T.TransactionId
+  , sendMessageResponseResponse ∷ EventResponse
+  }
+  deriving stock (Generic, Eq, Show)
+
+instance ToJSON SendMessageResponse where toJSON = myGenericToJSON
+instance FromJSON SendMessageResponse where parseJSON = myGenericParseJSON
 
 
 -- * Helpers
