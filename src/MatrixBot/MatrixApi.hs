@@ -36,9 +36,6 @@ import MatrixBot.SharedTypes
 
 -- * Basic stuff
 
--- TODO: Get rid of the old API version
-type ClientR0 a = "_matrix" :> "client" :> "r0" :> a
-
 type ClientV3 a = "_matrix" :> "client" :> "v3" :> a
 
 type Authenticated a = AuthProtect "access-token" :> a
@@ -48,9 +45,8 @@ type Authenticated a = AuthProtect "access-token" :> a
 
 -- ** Login
 
--- TODO: Implement authentication using API v3
 type LoginApi
-  = ClientR0
+  = ClientV3
   ( "login"
   :> ReqBody '[JSON] LoginRequest
   :> Post '[JSON] LoginResponse
