@@ -182,7 +182,7 @@ data ClientEventGeneric f = ClientEventGeneric
   , clientEventGenericContent ∷ Object
   , clientEventGenericEventId ∷ f EventId
   , clientEventGenericOriginServerTs ∷ f Integer
-  , clientEventGenericRoomId ∷ RoomId
+  , clientEventGenericRoomId ∷ f RoomId
   , clientEventGenericSender ∷ f Mxid
   , clientEventGenericStateKey ∷ Maybe Text
   , clientEventGenericUnsigned ∷ Maybe Value

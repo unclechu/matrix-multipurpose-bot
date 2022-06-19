@@ -245,7 +245,7 @@ eventsListener botConfig req auth jobsQueue = do
       case ev of
         Api.ClientEventMRoomMessage g m → do
           let
-            roomId = Api.clientEventGenericRoomId g
+            roomId = runIdentity . Api.clientEventGenericRoomId $ g
             user = runIdentity . Api.clientEventGenericSender $ g
             eventId = runIdentity . Api.clientEventGenericEventId $ g
 
