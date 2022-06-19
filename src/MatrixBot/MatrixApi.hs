@@ -212,7 +212,7 @@ instance FromJSON MRoomMessageClientEvent where parseJSON = myGenericParseJSON
 -- | r.room.message “content” field of any msgtype
 data MRoomMessageClientEventContent
   = MRoomMessageClientEventContentMText MRoomMessageMTextMsgtypeClientEventContent
-  | MRoomMessageClientEventContentOther MRoomMessageOtherMsgtypeClientEventContent
+  | MRoomMessageClientEventContentOther Object
   deriving stock (Generic, Show, Eq)
 
 instance ToJSON MRoomMessageClientEventContent where
@@ -239,34 +239,6 @@ data MRoomMessageMTextMsgtypeClientEventContent = MRoomMessageMTextMsgtypeClient
 
 instance ToJSON MRoomMessageMTextMsgtypeClientEventContent where toJSON = myGenericToJSON
 instance FromJSON MRoomMessageMTextMsgtypeClientEventContent where parseJSON = myGenericParseJSON
-
-
--- | m.room.message any other unmatched msgtype
-data MRoomMessageOtherMsgtypeClientEventContent = MRoomMessageOtherMsgtypeClientEventContent
-  { mRoomMessageOtherMsgtypeClientEventContentMsgtype ∷ Text
-  , mRoomMessageOtherMsgtypeClientEventContentBody ∷ Text
-  , mRoomMessageOtherMsgtypeClientEventContentOther ∷ Object
-  -- ^ All other fields
-  }
-  deriving stock (Generic, Show, Eq)
-
-instance ToJSON MRoomMessageOtherMsgtypeClientEventContent where
-  toJSON x = Object $ mconcat
-    [ KM.singleton "msgtype" . String . mRoomMessageOtherMsgtypeClientEventContentMsgtype $ x
-    , KM.singleton "body" . String . mRoomMessageOtherMsgtypeClientEventContentBody $ x
-    , mRoomMessageOtherMsgtypeClientEventContentOther x
-    ]
-
-instance FromJSON MRoomMessageOtherMsgtypeClientEventContent where
-  parseJSON ∷ ∀a. (a ~ MRoomMessageOtherMsgtypeClientEventContent) ⇒ Value → Parser a
-  parseJSON = withObject (show . typeRep $ Proxy @a) $ \v →
-    MRoomMessageOtherMsgtypeClientEventContent
-      <$> v .: msgtypeKey
-      <*> v .: bodyKey
-      <*> pure (KM.delete msgtypeKey . KM.delete bodyKey $ v)
-    where
-      msgtypeKey = "msgtype"
-      bodyKey = "body"
 
 
 -- * Send event
