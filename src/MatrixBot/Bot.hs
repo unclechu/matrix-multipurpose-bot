@@ -10,6 +10,7 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UnicodeSyntax #-}
 {-# LANGUAGE ViewPatterns #-}
+
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 {-# HLINT ignore "Redundant <&>" #-}
 
@@ -27,7 +28,7 @@ import Numeric.Natural
 import qualified Data.ByteString as BS
 import qualified Data.List.NonEmpty as NE
 
-import Control.Monad (forever, when, forM_)
+import Control.Monad
 import Control.Monad.IO.Class
 import Control.Monad.IO.Unlift (MonadUnliftIO)
 import Control.Monad.Trans.Class (lift)
@@ -154,7 +155,8 @@ jobsHandler req auth jobsQueue = do
       >>= (\x → x <$ logDebug ("Received a job to handle: " <> (pack . show) x))
       >>= retryOnClientError . \case
             BotJobSendReaction transactionId roomId eventId reactionText →
-              void $ sendReaction req auth transactionId roomId eventId reactionText
+              ignoreSendSameReactionTwiceError $ void $
+                sendReaction req auth transactionId roomId eventId reactionText
             BotJobSendMessage transactionId roomId msg →
               void $ sendMessage req auth transactionId roomId msg
 
@@ -452,3 +454,30 @@ withReqAndAuth m = do
   req ← Api.mkMatrixApiClient . Auth.credentialsHomeServer $ credentials
   auth ← Auth.getAuthenticatedMatrixRequest
   m req auth
+
+
+ignoreSendSameReactionTwiceError
+  ∷ (E.MonadCatch m, ML.MonadLogger m)
+  ⇒ m ()
+  → m ()
+ignoreSendSameReactionTwiceError =
+  flip E.catch $ \e@(Servant.FailureResponse _req response) →
+    maybe (E.throwM e) logCaughtException $ do
+      guard $ (Http.statusCode . Servant.responseStatusCode) response == 400
+      x ← decode @ErrorResponse . Servant.responseBody $ response
+      guard $ errorResponseErrcode x == "M_UNKNOWN"
+      guard $ errorResponseError x == "Can't send same reaction twice"
+      pure x
+  where
+    logCaughtException e =
+      logWarn $ "Caught this error (just ignoring it): " <> (pack . show) e
+
+
+data ErrorResponse = ErrorResponse
+  { errorResponseErrcode ∷ Text
+  , errorResponseError ∷ Text
+  }
+  deriving stock (Generic, Show, Eq)
+
+instance ToJSON ErrorResponse where toJSON = myGenericToJSON
+instance FromJSON ErrorResponse where parseJSON = myGenericParseJSON
