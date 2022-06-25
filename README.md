@@ -43,7 +43,19 @@ Just run `nix-build` as shown above and it supposed to work as usual.
 
 ### Stack
 
-**TODO:** Support build using Stack.
+``` sh
+stack build
+stack run matrix-bot -- --help
+```
+
+You can use [Stack](https://haskellstack.org/) with
+[Nix configuration of this project](default.nix) as well:
+
+``` sh
+nix-shell --arg buildTools '["stack"]'
+stack build
+stack run matrix-bot -- --help
+```
 
 ### Cabal
 

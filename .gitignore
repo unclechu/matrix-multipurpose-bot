@@ -1,6 +1,9 @@
 # Cabal build directories
 dist*
 
+# Stack artifacts
+.stack-work
+
 # Nix artifacts
 result*
 

@@ -1,9 +1,15 @@
-let sources = import nix/sources.nix; in
+let
+  sources = import nix/sources.nix;
+  availableBuildTools = [ "cabal" "stack" ];
+in
 
 { pkgs ? import sources.nixpkgs {}
 , inNixShell ? false
 , withHLS ? true
+, buildTools ? [ "cabal" ] # See “availableBuildTools”
 }:
+
+assert builtins.all (x: builtins.elem x availableBuildTools) buildTools;
 
 let
   # +1 and -1 for the slash after the prefix
@@ -55,9 +61,10 @@ let
     withHoogle = true;
 
     buildInputs = [
-      hsPkgs.cabal-install
       pkgs.jq
-    ] ++ pkgs.lib.optional withHLS hsPkgs.haskell-language-server;
+    ] ++ pkgs.lib.optional withHLS hsPkgs.haskell-language-server
+      ++ pkgs.lib.optional (builtins.elem "cabal" buildTools) hsPkgs.cabal-install
+      ++ pkgs.lib.optional (builtins.elem "stack" buildTools) hsPkgs.stack;
   };
 in
 
