@@ -85,6 +85,17 @@ You can check for in [nixpkgs pin](nix/sources.json) and find what versions you 
    matrix-bot start --credentials auth.json --bot-config bot-config.json
    ```
 
+## Usage help
+
+You can call `matrix-bot --help` to get usage info but it only shows the first level of help.
+It shows you information about basic commands (`auth`, `start`, etc). These commands in turn have
+their own help information you can reach by calling `--help` after the command name. Example:
+
+``` sh
+matrix-bot auth --help
+matrix-bot start --help
+```
+
 ## License
 
 [GNU/GPLv3](LICENSE)
