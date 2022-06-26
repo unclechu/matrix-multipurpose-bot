@@ -123,6 +123,7 @@ data StartOptions = StartOptions
   , startOptionsEventTokenFile ∷ Maybe FilePath
   -- ^ Path to a JSON file that contains last event token to start listening events from (when
   --   application starts it reads from this file, when it receives new events it writes to it)
+  , startOptionsEventsTimeout ∷ EventsTimeout
   }
   deriving stock (Eq, Show)
 
@@ -134,6 +135,7 @@ startOptionsParser = go where
     <*> retryLimit'
     <*> retryDelay'
     <*> eventToken
+    <*> eventsTimeout
 
   credentialsFile = strOption $ mconcat
     [ long "credentials"
@@ -178,6 +180,17 @@ startOptionsParser = go where
         ]
     , metavar "FILE"
     , value Nothing
+    ]
+
+  eventsTimeout = option (EventsTimeout . Seconds <$> auto) $ mconcat
+    [ long "events-timeout"
+    , help $ unwords
+        [ "Amount of seconds before waiting for next events returns early with an empty list of new"
+        , "events to go to second iteration (infinite loop of events listening)"
+        ]
+    , metavar "SECONDS"
+    , value . EventsTimeout . Seconds $ 60
+    , showDefaultWith $ (<> " second(s)") . show . unSeconds . unEventsTimeout
     ]
 
 

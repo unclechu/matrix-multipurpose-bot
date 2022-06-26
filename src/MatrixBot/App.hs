@@ -115,6 +115,7 @@ runStart opts = do
     retryLimit = O.startOptionsRetryLimit opts
     retryDelay = O.startOptionsRetryDelay opts
     eventTokenFile = O.startOptionsEventTokenFile opts
+    eventsTimeout = O.startOptionsEventsTimeout opts
 
   logDebug $ mconcat
     [ "Failed Matrix API call retry limit: "
@@ -125,6 +126,12 @@ runStart opts = do
   logDebug $ mconcat
     [ "Failed Matrix API call retry interval: "
     , T.printRetryDelaySeconds retryDelay
+    ]
+
+  logDebug $ mconcat
+    [ "Matrix events listening timeout: "
+    , pack . show . T.unSeconds . T.unEventsTimeout $ eventsTimeout
+    , " second(s)"
     ]
 
   case eventTokenFile of
@@ -164,7 +171,8 @@ runStart opts = do
   botConfig ←
     either fail pure =<< liftIO (eitherDecodeFileStrict . O.startOptionsBotConfigFile $ opts)
 
-  Bot.startTheBot eventTokenFile botConfig `MR.runReaderT` BotEnv credentials retryLimit retryDelay
+  Bot.startTheBot eventTokenFile eventsTimeout botConfig
+    `MR.runReaderT` BotEnv credentials retryLimit retryDelay
 
 
 runSendMessage
@@ -200,7 +208,7 @@ runSendMessage opts = do
         liftIO $ TextIO.readFile file
 
   flip MR.runReaderT credentials $
-    Bot.withReqAndAuth $ \req auth → do
+    Bot.withReqAndAuth (T.EventsTimeout . T.Seconds $ 30) $ \req auth → do
       transactionId ←
         case O.sendMessageOptionsTransactionId opts of
           Nothing → do

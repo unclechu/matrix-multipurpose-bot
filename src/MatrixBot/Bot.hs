@@ -70,20 +70,24 @@ type BotM r m =
   , T.HasRetryParams r
   )
 
-startTheBot ∷ BotM r m ⇒ Maybe FilePath → BotConfig → m ()
-startTheBot eventTokenFile botConfig = do
+startTheBot ∷ BotM r m ⇒ Maybe FilePath → T.EventsTimeout → BotConfig → m ()
+startTheBot eventTokenFile eventsTimeout botConfig = do
   logDebug "Starting the bot…"
   logDebug $ "Bot configuration: " <> (pack . show) botConfig
 
-  withReqAndAuth $ \req auth → do
+  withReqAndAuth eventsTimeout $ \req auth → do
     startupSmokeTest req auth
     jobsQueue ← STM.newTQueueIO
 
     logDebug "Running bot threads (jobs queue handler and room events listener)…"
 
+    let
+      jobsHandler' = jobsHandler req auth jobsQueue
+      eventsListener' = eventsListener eventTokenFile eventsTimeout botConfig req auth jobsQueue
+
     void . Async.runConcurrently
-      $ Async.Concurrently (threadWrap $ jobsHandler req auth jobsQueue)
-      <* Async.Concurrently (threadWrap $ eventsListener eventTokenFile botConfig req auth jobsQueue)
+      $ Async.Concurrently (threadWrap jobsHandler')
+      <* Async.Concurrently (threadWrap eventsListener')
 
   where
     startupSmokeTest req auth = do
@@ -227,12 +231,13 @@ eventsListener
   ∷ ∀ r m
   . BotM r m
   ⇒ Maybe FilePath
+  → T.EventsTimeout
   → BotConfig
   → Api.MatrixApiClient
   → AuthenticatedRequest (AuthProtect "access-token")
   → BotJobsQueue
   → m ()
-eventsListener eventTokenFile botConfig req auth jobsQueue = do
+eventsListener eventTokenFile eventsTimeout botConfig req auth jobsQueue = do
   logDebug "Starting Matrix rooms events listener…"
 
   initialEventToken ←
@@ -301,18 +306,13 @@ eventsListener eventTokenFile botConfig req auth jobsQueue = do
     again . Just $ nextEventToken
 
   where
-    -- WARNING! Watch also the "Network.HTTP.Client.ResponseTimeout"! It’s 30 seconds by default.
-    --          It will fail with an exception if this Matrix timeout is higher than that and after
-    --          some retries fail the application completely.
-    timeout = T.Seconds 20
-
     getNextEvents ∷ Maybe T.EventToken → m Api.EventsResponse
     getNextEvents eventToken = do
       Api.runMatrixApiClient' req $
         client @Api.EventsApi Proxy auth
           eventToken
           Nothing -- Listening for events from all rooms
-          (Just . T.secondsToMilliseconds $ timeout)
+          (Just . T.secondsToMilliseconds . T.unEventsTimeout $ eventsTimeout)
 
     sendJob ∷ BotJob → m ()
     sendJob = STM.atomically . STM.writeTQueue jobsQueue
@@ -447,9 +447,10 @@ withReqAndAuth
   , MR.MonadReader r m
   , Auth.HasCredentials r
   )
-  ⇒ (Api.MatrixApiClient → AuthenticatedRequest (AuthProtect "access-token") → m a)
+  ⇒ T.EventsTimeout
+  → (Api.MatrixApiClient → AuthenticatedRequest (AuthProtect "access-token") → m a)
   → m a
-withReqAndAuth m = do
+withReqAndAuth eventsTimeout m = do
   credentials ← MR.asks $ L.view Auth.credentials
 
   logDebug $ mconcat
@@ -458,7 +459,22 @@ withReqAndAuth m = do
     , "…"
     ]
 
-  req ← Api.mkMatrixApiClient Api.defaultRequestOptions . Auth.credentialsHomeServer $ credentials
+  req ←
+    let
+      opts = Api.defaultRequestOptions
+        { Api.requestOptionsTimeout
+            = Just
+            . T.Seconds
+            . round @Rational @Integer
+            . (* 1.5) -- Some headroom for network delays in order to avoid timeout exceptions
+            . fromInteger @Rational
+            . T.unSeconds
+            . T.unEventsTimeout
+            $ eventsTimeout
+        }
+    in
+      Api.mkMatrixApiClient opts . Auth.credentialsHomeServer $ credentials
+
   auth ← Auth.getAuthenticatedMatrixRequest
   m req auth
 

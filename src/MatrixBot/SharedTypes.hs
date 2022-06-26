@@ -210,3 +210,8 @@ printRetryDelaySeconds
   . fromIntegral @Integer @Double
   . unMicroseconds
   . unRetryDelay
+
+
+newtype EventsTimeout = EventsTimeout { unEventsTimeout ∷ Seconds }
+  deriving stock (Eq, Show)
+  deriving newtype (ToJSON, FromJSON)
