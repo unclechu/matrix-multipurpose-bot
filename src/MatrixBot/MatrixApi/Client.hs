@@ -11,12 +11,12 @@
 
 module MatrixBot.MatrixApi.Client where
 
--- import Data.ByteString.Lazy (toStrict)
--- import Data.Text.Encoding (decodeUtf8)
 import Data.Bifunctor (bimap)
 import Data.Binary.Builder (toLazyByteString)
+import Data.ByteString.Lazy (toStrict)
 import Data.Proxy
 import Data.Text (Text, pack, unpack)
+import Data.Text.Encoding (decodeUtf8)
 
 import Control.Exception.Safe (MonadThrow, throwM)
 import Control.Monad.IO.Class (MonadIO (..))
@@ -49,7 +49,37 @@ data MatrixApiClient = MatrixApiClient
       ⇒ Proxy api
       → (∀clientM. HasClient clientM api ⇒ Client clientM api → clientM a)
       → m (Either ClientError a)
+
+  -- | Variant that doesn’t log request body that may contain passwords or streamed byte strings
+  , runMatrixApiClientDoNotShowReqBody
+      ∷ ∀ api m a .
+      ( MonadIO m
+      , MonadFail m -- Resolving unexpected cases to a failure
+      , Show a -- Paired with @MonadFail@ to print unexpected values
+      , ML.MonadLogger m -- Logging the request
+      , HasClient (Free.Free ServantFree.ClientF) api -- For logging requests
+      , HasClient ClientM api
+      )
+      ⇒ Proxy api
+      → (∀clientM. HasClient clientM api ⇒ Client clientM api → clientM a)
+      → m (Either ClientError a)
+
   , runMatrixApiClient'
+      ∷ ∀ api m a .
+      ( MonadIO m
+      , MonadFail m -- Resolving unexpected cases to a failure
+      , Show a -- Paired with @MonadFail@ to print unexpected values
+      , MonadThrow m -- Throwing error instead of returning @Either ClientError@
+      , ML.MonadLogger m -- Logging the request
+      , HasClient (Free.Free ServantFree.ClientF) api -- For logging requests
+      , HasClient ClientM api
+      )
+      ⇒ Proxy api
+      → (∀clientM. HasClient clientM api ⇒ Client clientM api → clientM a)
+      → m a
+
+  -- | Variant that doesn’t log request body that may contain passwords or streamed byte strings
+  , runMatrixApiClientDoNotShowReqBody'
       ∷ ∀ api m a .
       ( MonadIO m
       , MonadFail m -- Resolving unexpected cases to a failure
@@ -100,21 +130,26 @@ mkMatrixApiClient reqOpts homeServer = do
       , HasClient (Free.Free ServantFree.ClientF) api
       , HasClient ClientM api
       )
-      ⇒ Proxy api
+      ⇒ Bool
+      -- ^ Show request body
+      → Proxy api
       → (∀clientM. HasClient clientM api ⇒ Client clientM api → clientM a)
       → m (Either ClientError a)
-    f p@Proxy genericClientF = do
+    f showReqBody p@Proxy genericClientF = do
       case genericClientF . ServantFree.client $ p of
         Free.Free (ServantFree.RunRequest req _responseResolver) →
           let
             fReqBody ∷ ServantRequest.RequestBody → Text
             fReqBody = \case
-              -- FIXME Can print plain text passwords
-              -- ServantRequest.RequestBodyLBS x → decodeUtf8 . toStrict $ x
-              -- ServantRequest.RequestBodyBS x → decodeUtf8 x
-              ServantRequest.RequestBodyLBS _ → "<REDACTED>"
-              ServantRequest.RequestBodyBS _ → "<REDACTED>"
-              ServantRequest.RequestBodySource _ → "<STREAM>"
+              ServantRequest.RequestBodyLBS x →
+                if showReqBody
+                  then decodeUtf8 . toStrict $ x
+                  else "<REDACTED LAZY BYTE STRING>"
+              ServantRequest.RequestBodyBS x →
+                if showReqBody
+                  then decodeUtf8 x
+                  else "<REDACTED BYTE STRING>"
+              ServantRequest.RequestBodySource _ → "<REDACTED STREAM>"
 
             fPath = toLazyByteString
           in
@@ -130,7 +165,11 @@ mkMatrixApiClient reqOpts homeServer = do
 
       liftIO . flip runClientM clientEnv . genericClientF . client $ p
 
-  pure $ MatrixApiClient f (\p clientF → f p clientF >>= either throwM pure)
+  pure $ MatrixApiClient
+    (f True)
+    (f False)
+    (\p clientF → f True p clientF >>= either throwM pure)
+    (\p clientF → f False p clientF >>= either throwM pure)
 
   where
     responseTimeout =

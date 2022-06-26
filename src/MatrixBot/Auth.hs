@@ -49,7 +49,7 @@ authenticate mxid password = do
   logDebug $ "Authenticating as " <> (pack . show . T.printMxid) mxid <> "…"
 
   response ←
-    Api.runMatrixApiClient' req (Proxy @Api.LoginApi) $ \f → f Api.LoginRequest
+    Api.runMatrixApiClientDoNotShowReqBody' req (Proxy @Api.LoginApi) $ \f → f Api.LoginRequest
       { Api.loginRequestType = Api.MLoginPasswordType
       , Api.loginRequestUser = T.mxidUsername mxid
       , Api.loginRequestPassword = password
