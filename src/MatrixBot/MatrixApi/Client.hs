@@ -1,6 +1,7 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE NoMonomorphismRestriction #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UnicodeSyntax #-}
@@ -53,7 +54,7 @@ mkMatrixApiClient
 mkMatrixApiClient reqOpts homeServer = do
   tlsManager ← withRunInIO $ \runInIO → do
     let
-      managerSettings = HTTP.defaultManagerSettings
+      managerSettings = HTTP.tlsManagerSettings
         { HTTP.managerResponseTimeout = responseTimeout
         , HTTP.managerModifyRequest = \req → do
             runInIO $ requestOptionsRequestLogger reqOpts req
@@ -61,7 +62,7 @@ mkMatrixApiClient reqOpts homeServer = do
         }
     HTTP.newTlsManagerWith managerSettings
 
-  baseUrl' ← parseBaseUrl . unpack . T.unHomeServer $ homeServer
+  baseUrl' ← parseBaseUrl . unpack . ("https://" <>) . T.unHomeServer $ homeServer
 
   let
     clientEnv = mkClientEnv tlsManager baseUrl'
