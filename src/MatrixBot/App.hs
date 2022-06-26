@@ -77,7 +77,10 @@ runApp = go where
       O.AppCommandSendMessage opts → runSendMessage opts
 
 
-runAuth ∷ (MonadIO m, MonadFail m, E.MonadThrow m, ML.MonadLogger m) ⇒ O.AuthOptions → m ()
+runAuth
+  ∷ (MonadIO m, MonadUnliftIO m, MonadFail m, E.MonadThrow m, ML.MonadLogger m)
+  ⇒ O.AuthOptions
+  → m ()
 runAuth opts = do
   logDebug "Running authentication…"
   let quotedMxid = quoted . T.printMxid . O.authOptionsMxid $ opts
@@ -165,7 +168,7 @@ runStart opts = do
 
 
 runSendMessage
-  ∷ (MonadIO m, MonadFail m, E.MonadThrow m, ML.MonadLogger m)
+  ∷ (MonadIO m, MonadUnliftIO m, MonadFail m, E.MonadThrow m, ML.MonadLogger m)
   ⇒ O.SendMessageOptions
   → m ()
 runSendMessage opts = do

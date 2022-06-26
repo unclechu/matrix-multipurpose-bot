@@ -17,6 +17,7 @@ import Data.Aeson (ToJSON (..), FromJSON (..))
 import Control.Exception.Safe (MonadThrow)
 import Control.Lens (Lens', view)
 import Control.Monad.IO.Class
+import Control.Monad.IO.Unlift (MonadUnliftIO)
 import Control.Monad.Reader
 import qualified Control.Monad.Logger as ML
 
@@ -34,13 +35,17 @@ import qualified MatrixBot.SharedTypes as T
 
 -- * Functions
 
-authenticate ∷ (MonadIO m, MonadThrow m, ML.MonadLogger m) ⇒ T.Mxid → T.Password → m Credentials
+authenticate
+  ∷ (MonadIO m, MonadUnliftIO m, MonadThrow m, ML.MonadLogger m)
+  ⇒ T.Mxid
+  → T.Password
+  → m Credentials
 authenticate mxid password = do
   logDebug $
     "Creating request handler for "
     <> (pack . show . T.unHomeServer . T.mxidHomeServer) mxid <> "…"
 
-  req ← Api.mkMatrixApiClient . T.mxidHomeServer $ mxid
+  req ← Api.mkMatrixApiClient Api.defaultRequestOptions . T.mxidHomeServer $ mxid
 
   logDebug $ "Authenticating as " <> (pack . show . T.printMxid) mxid <> "…"
 

@@ -439,7 +439,14 @@ retryOnClientError m = do
 
 
 withReqAndAuth
-  ∷ (MonadIO m, E.MonadThrow m, ML.MonadLogger m, MR.MonadReader r m, Auth.HasCredentials r)
+  ∷
+  ( MonadIO m
+  , MonadUnliftIO m
+  , E.MonadThrow m
+  , ML.MonadLogger m
+  , MR.MonadReader r m
+  , Auth.HasCredentials r
+  )
   ⇒ (Api.MatrixApiClient → AuthenticatedRequest (AuthProtect "access-token") → m a)
   → m a
 withReqAndAuth m = do
@@ -451,7 +458,7 @@ withReqAndAuth m = do
     , "…"
     ]
 
-  req ← Api.mkMatrixApiClient . Auth.credentialsHomeServer $ credentials
+  req ← Api.mkMatrixApiClient Api.defaultRequestOptions . Auth.credentialsHomeServer $ credentials
   auth ← Auth.getAuthenticatedMatrixRequest
   m req auth
 
