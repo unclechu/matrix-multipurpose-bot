@@ -45,6 +45,7 @@ library
     , containers
     , directory
     , fast-logger
+    , free
     , http-client
     , http-client-tls
     , http-types

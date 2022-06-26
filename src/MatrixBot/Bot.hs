@@ -47,7 +47,6 @@ import System.Directory (doesFileExist)
 import qualified Network.HTTP.Types.Status as Http
 
 import Servant.API (AuthProtect)
-import Servant.Client
 import Servant.Client.Core (AuthenticatedRequest)
 import qualified Servant.Client.Core as Servant
 
@@ -93,12 +92,12 @@ startTheBot eventTokenFile eventsTimeout botConfig = do
     startupSmokeTest req auth = do
       logDebug "Running a some test to make sure the bot is authenticated and can make Matrix API calls…"
 
-      void . Api.runMatrixApiClient' req $
-        client @Api.EventsApi Proxy auth
-          Nothing
-          Nothing
-          (Just . T.Milliseconds $ 1)
-          -- ↑ Timeouts as fast as possible (the list of received events would most likely be empty)
+      void $ Api.runMatrixApiClient' req (Proxy @Api.EventsApi) $ \f → f
+        auth
+        Nothing
+        Nothing
+        (Just . T.Milliseconds $ 1)
+        -- ↑ Timeouts as fast as possible (the list of received events would most likely be empty)
 
     logThreadFailure =
       flip E.withException $ \(e ∷ E.SomeException) →
@@ -168,7 +167,7 @@ jobsHandler req auth jobsQueue = do
 -- ** Bot job handlers
 
 sendReaction
-  ∷ (MonadIO m, E.MonadThrow m, ML.MonadLogger m)
+  ∷ (MonadIO m, MonadFail m, E.MonadThrow m, ML.MonadLogger m)
   ⇒ Api.MatrixApiClient
   → AuthenticatedRequest (AuthProtect "access-token")
   → T.TransactionId
@@ -184,8 +183,9 @@ sendReaction req auth transactionId roomId eventId reactionText = do
     , "…"
     ]
 
-  response ← Api.runMatrixApiClient' req $
-    client @(Api.SendEventApi Api.MReactionType) Proxy auth
+  response ←
+    Api.runMatrixApiClient' req (Proxy @(Api.SendEventApi Api.MReactionType)) $ \f → f
+      auth
       roomId
       Api.MReactionType
       transactionId
@@ -195,7 +195,7 @@ sendReaction req auth transactionId roomId eventId reactionText = do
 
 
 sendMessage
-  ∷ (MonadIO m, E.MonadThrow m, ML.MonadLogger m)
+  ∷ (MonadIO m, MonadFail m, E.MonadThrow m, ML.MonadLogger m)
   ⇒ Api.MatrixApiClient
   → AuthenticatedRequest (AuthProtect "access-token")
   → T.TransactionId
@@ -209,8 +209,9 @@ sendMessage req auth transactionId roomId msg = do
     , "…"
     ]
 
-  response ← Api.runMatrixApiClient' req $
-    client @(Api.SendEventApi Api.MRoomMessageType) Proxy auth
+  response ←
+    Api.runMatrixApiClient' req (Proxy @(Api.SendEventApi Api.MRoomMessageType)) $ \f → f
+      auth
       roomId
       Api.MRoomMessageType
       transactionId
@@ -307,12 +308,12 @@ eventsListener eventTokenFile eventsTimeout botConfig req auth jobsQueue = do
 
   where
     getNextEvents ∷ Maybe T.EventToken → m Api.EventsResponse
-    getNextEvents eventToken = do
-      Api.runMatrixApiClient' req $
-        client @Api.EventsApi Proxy auth
-          eventToken
-          Nothing -- Listening for events from all rooms
-          (Just . T.secondsToMilliseconds . T.unEventsTimeout $ eventsTimeout)
+    getNextEvents eventToken =
+      Api.runMatrixApiClient' req (Proxy @Api.EventsApi) $ \f → f
+        auth
+        eventToken
+        Nothing -- Listening for events from all rooms
+        (Just . T.secondsToMilliseconds . T.unEventsTimeout $ eventsTimeout)
 
     sendJob ∷ BotJob → m ()
     sendJob = STM.atomically . STM.writeTQueue jobsQueue

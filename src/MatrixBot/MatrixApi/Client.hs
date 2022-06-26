@@ -1,19 +1,21 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DerivingStrategies #-}
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE NoMonomorphismRestriction #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UnicodeSyntax #-}
 
 module MatrixBot.MatrixApi.Client where
 
+import Data.Proxy
 import Data.Text (pack, unpack)
 
 import Control.Exception.Safe (MonadThrow, throwM)
-import Control.Monad
 import Control.Monad.IO.Class (MonadIO (..))
-import Control.Monad.IO.Unlift (MonadUnliftIO, withRunInIO)
+import qualified Control.Monad.Free as Free
 import qualified Control.Monad.Logger as ML
 
 import qualified Network.HTTP.Client as HTTP
@@ -22,58 +24,94 @@ import qualified Network.HTTP.Client.TLS as HTTP
 import Servant.API
 import Servant.Client
 import Servant.Client.Core.Auth
+import qualified Servant.Client.Free as ServantFree
 
 import MatrixBot.Log (logDebug)
 import qualified MatrixBot.SharedTypes as T
 
 
 data MatrixApiClient = MatrixApiClient
-  { runMatrixApiClient ∷ ∀m a. MonadIO m ⇒ ClientM a → m (Either ClientError a)
-  , runMatrixApiClient' ∷ ∀m a. (MonadIO m, MonadThrow m) ⇒ ClientM a → m a
+  { runMatrixApiClient
+      ∷ ∀ api m a .
+      ( MonadIO m
+      , MonadFail m -- Resolving unexpected cases to a failure
+      , Show a -- Paired with @MonadFail@ to print unexpected values
+      , ML.MonadLogger m -- Logging the request
+      , HasClient (Free.Free ServantFree.ClientF) api -- For logging requests
+      , HasClient ClientM api
+      )
+      ⇒ Proxy api
+      → (∀clientM. HasClient clientM api ⇒ Client clientM api → clientM a)
+      → m (Either ClientError a)
+  , runMatrixApiClient'
+      ∷ ∀ api m a .
+      ( MonadIO m
+      , MonadFail m -- Resolving unexpected cases to a failure
+      , Show a -- Paired with @MonadFail@ to print unexpected values
+      , MonadThrow m -- Throwing error instead of returning @Either ClientError@
+      , ML.MonadLogger m -- Logging the request
+      , HasClient (Free.Free ServantFree.ClientF) api -- For logging requests
+      , HasClient ClientM api
+      )
+      ⇒ Proxy api
+      → (∀clientM. HasClient clientM api ⇒ Client clientM api → clientM a)
+      → m a
   }
 
 
-data RequestOptions = RequestOptions
+newtype RequestOptions = RequestOptions
   { requestOptionsTimeout ∷ Maybe T.Seconds
   -- ^ "Nothing" means default timeout value (30 seconds)
-  , requestOptionsRequestLogger ∷ ∀m. ML.MonadLogger m ⇒ HTTP.Request → m ()
   }
 
 
 defaultRequestOptions ∷ RequestOptions
 defaultRequestOptions = RequestOptions
   { requestOptionsTimeout = Nothing
-  , requestOptionsRequestLogger = \req →
-      logDebug $ "Making a client request: " <> (pack . show) req
   }
 
 
 mkMatrixApiClient
-  ∷ (MonadIO m, MonadUnliftIO m, MonadThrow m, ML.MonadLogger m)
+  ∷ (MonadIO m, MonadThrow m, ML.MonadLogger m)
   ⇒ RequestOptions
   → T.HomeServer
   → m MatrixApiClient
 mkMatrixApiClient reqOpts homeServer = do
-  tlsManager ← withRunInIO $ \runInIO →
-    let
-      managerSettings = HTTP.tlsManagerSettings
-        { HTTP.managerResponseTimeout = responseTimeout
-        , HTTP.managerModifyRequest = \req → do
-            runInIO $ requestOptionsRequestLogger reqOpts req
-            HTTP.managerModifyRequest HTTP.defaultManagerSettings req
-        }
-    in
-      HTTP.newTlsManagerWith managerSettings
+  tlsManager ←
+    HTTP.newTlsManagerWith HTTP.tlsManagerSettings { HTTP.managerResponseTimeout = responseTimeout }
 
   baseUrl' ← parseBaseUrl . unpack . ("https://" <>) . T.unHomeServer $ homeServer
 
   let
     clientEnv = mkClientEnv tlsManager baseUrl'
 
-    f ∷ MonadIO m ⇒ ClientM a → m (Either ClientError a)
-    f = liftIO . flip runClientM clientEnv
+    f
+      ∷ ∀ api m a .
+      ( MonadIO m
+      , MonadFail m
+      , ML.MonadLogger m
+      , Show a
+      , HasClient (Free.Free ServantFree.ClientF) api
+      , HasClient ClientM api
+      )
+      ⇒ Proxy api
+      → (∀clientM. HasClient clientM api ⇒ Client clientM api → clientM a)
+      → m (Either ClientError a)
+    f p@Proxy genericClientF = do
+      case genericClientF . ServantFree.client $ p of
+        Free.Free (ServantFree.RunRequest req _responseResolver) →
+          logDebug $ mconcat
+            [ "Making a client request: "
+            , pack . show . defaultMakeClientRequest baseUrl' $ req
+            ]
+        Free.Free (ServantFree.Throw x) →
+          fail $ "Unexpected client request mock failure: " <> show x
+        Free.Pure x →
+          fail $ "Unexpected client request mock Pure: " <> show x
 
-  pure $ MatrixApiClient f (f >=> either throwM pure)
+      liftIO . flip runClientM clientEnv . genericClientF . client $ p
+
+  pure $ MatrixApiClient f (\p clientF → f p clientF >>= either throwM pure)
 
   where
     responseTimeout =

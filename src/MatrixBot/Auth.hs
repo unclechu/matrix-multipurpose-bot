@@ -22,7 +22,6 @@ import Control.Monad.Reader
 import qualified Control.Monad.Logger as ML
 
 import Servant.API (AuthProtect)
-import Servant.Client
 import Servant.Client.Core (addHeader)
 import Servant.Client.Core.Auth
 
@@ -36,7 +35,7 @@ import qualified MatrixBot.SharedTypes as T
 -- * Functions
 
 authenticate
-  ∷ (MonadIO m, MonadUnliftIO m, MonadThrow m, ML.MonadLogger m)
+  ∷ (MonadIO m, MonadFail m, MonadUnliftIO m, MonadThrow m, ML.MonadLogger m)
   ⇒ T.Mxid
   → T.Password
   → m Credentials
@@ -49,13 +48,12 @@ authenticate mxid password = do
 
   logDebug $ "Authenticating as " <> (pack . show . T.printMxid) mxid <> "…"
 
-  response
-    ← Api.runMatrixApiClient' req
-    $ client @Api.LoginApi Proxy $ Api.LoginRequest
-    { Api.loginRequestType = Api.MLoginPasswordType
-    , Api.loginRequestUser = T.mxidUsername mxid
-    , Api.loginRequestPassword = password
-    }
+  response ←
+    Api.runMatrixApiClient' req (Proxy @Api.LoginApi) $ \f → f Api.LoginRequest
+      { Api.loginRequestType = Api.MLoginPasswordType
+      , Api.loginRequestUser = T.mxidUsername mxid
+      , Api.loginRequestPassword = password
+      }
 
   pure Credentials
     { credentialsUsername = T.mxidUsername . Api.loginResponseUserId $ response
