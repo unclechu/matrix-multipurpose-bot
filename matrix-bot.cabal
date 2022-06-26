@@ -41,6 +41,7 @@ library
     , attoparsec
     , base ^>=4.15.1.0
     , base64
+    , binary
     , bytestring
     , containers
     , directory

@@ -1,6 +1,7 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE NoMonomorphismRestriction #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes #-}
@@ -10,8 +11,12 @@
 
 module MatrixBot.MatrixApi.Client where
 
+-- import Data.ByteString.Lazy (toStrict)
+-- import Data.Text.Encoding (decodeUtf8)
+import Data.Bifunctor (bimap)
+import Data.Binary.Builder (toLazyByteString)
 import Data.Proxy
-import Data.Text (pack, unpack)
+import Data.Text (Text, pack, unpack)
 
 import Control.Exception.Safe (MonadThrow, throwM)
 import Control.Monad.IO.Class (MonadIO (..))
@@ -24,6 +29,7 @@ import qualified Network.HTTP.Client.TLS as HTTP
 import Servant.API
 import Servant.Client
 import Servant.Client.Core.Auth
+import qualified Servant.Client.Core.Request as ServantRequest
 import qualified Servant.Client.Free as ServantFree
 
 import MatrixBot.Log (logDebug)
@@ -100,10 +106,23 @@ mkMatrixApiClient reqOpts homeServer = do
     f p@Proxy genericClientF = do
       case genericClientF . ServantFree.client $ p of
         Free.Free (ServantFree.RunRequest req _responseResolver) →
-          logDebug $ mconcat
-            [ "Making a client request: "
-            , pack . show . defaultMakeClientRequest baseUrl' $ req
-            ]
+          let
+            fReqBody ∷ ServantRequest.RequestBody → Text
+            fReqBody = \case
+              -- FIXME Can print plain text passwords
+              -- ServantRequest.RequestBodyLBS x → decodeUtf8 . toStrict $ x
+              -- ServantRequest.RequestBodyBS x → decodeUtf8 x
+              ServantRequest.RequestBodyLBS _ → "<REDACTED>"
+              ServantRequest.RequestBodyBS _ → "<REDACTED>"
+              ServantRequest.RequestBodySource _ → "<STREAM>"
+
+            fPath = toLazyByteString
+          in
+            logDebug $ mconcat
+              [ "Making a client request: "
+              , pack . show . defaultMakeClientRequest baseUrl' $ req
+              , pack . show . bimap fReqBody fPath $ req
+              ]
         Free.Free (ServantFree.Throw x) →
           fail $ "Unexpected client request mock failure: " <> show x
         Free.Pure x →
