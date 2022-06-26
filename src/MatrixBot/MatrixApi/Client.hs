@@ -8,7 +8,7 @@
 
 module MatrixBot.MatrixApi.Client where
 
-import Data.Text (unpack)
+import Data.Text (pack, unpack)
 
 import Control.Exception.Safe (MonadThrow, throwM)
 import Control.Monad
@@ -23,6 +23,7 @@ import Servant.API
 import Servant.Client
 import Servant.Client.Core.Auth
 
+import MatrixBot.Log (logDebug)
 import qualified MatrixBot.SharedTypes as T
 
 
@@ -42,7 +43,8 @@ data RequestOptions = RequestOptions
 defaultRequestOptions ∷ RequestOptions
 defaultRequestOptions = RequestOptions
   { requestOptionsTimeout = Nothing
-  , requestOptionsRequestLogger = \_req → pure ()
+  , requestOptionsRequestLogger = \req →
+      logDebug $ "Making a client request: " <> (pack . show) req
   }
 
 
@@ -52,7 +54,7 @@ mkMatrixApiClient
   → T.HomeServer
   → m MatrixApiClient
 mkMatrixApiClient reqOpts homeServer = do
-  tlsManager ← withRunInIO $ \runInIO → do
+  tlsManager ← withRunInIO $ \runInIO →
     let
       managerSettings = HTTP.tlsManagerSettings
         { HTTP.managerResponseTimeout = responseTimeout
@@ -60,7 +62,8 @@ mkMatrixApiClient reqOpts homeServer = do
             runInIO $ requestOptionsRequestLogger reqOpts req
             HTTP.managerModifyRequest HTTP.defaultManagerSettings req
         }
-    HTTP.newTlsManagerWith managerSettings
+    in
+      HTTP.newTlsManagerWith managerSettings
 
   baseUrl' ← parseBaseUrl . unpack . ("https://" <>) . T.unHomeServer $ homeServer
 
