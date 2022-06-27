@@ -161,6 +161,11 @@ genTransactionId ∷ MonadIO m ⇒ m TransactionId
 genTransactionId = TransactionId <$> liftIO nextRandom
 
 
+newtype FilterId = FilterId { unFilterId ∷ Text }
+  deriving stock (Eq, Show)
+  deriving newtype (ToJSON, FromJSON, ToHttpApiData)
+
+
 -- * Time-related stuff
 
 newtype Milliseconds = Milliseconds { unMilliseconds ∷ Integer }

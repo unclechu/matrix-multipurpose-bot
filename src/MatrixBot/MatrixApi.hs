@@ -268,6 +268,61 @@ instance ToJSON EventResponse where toJSON = myGenericToJSON
 instance FromJSON EventResponse where parseJSON = myGenericParseJSON
 
 
+-- * User filter endpoints
+
+-- ** Create user filter
+
+type CreateUserFilter
+  = ClientV3
+  ( Authenticated
+  ( "user"
+  :> Capture "userId" Mxid
+  -- ↑ The ID of the user uploading the filter (just self MXID associated with the access token)
+  :> "filter"
+  :> ReqBody '[JSON] UserFilter
+  :> Post '[JSON] UserFilterIdResponse
+  ))
+
+
+newtype UserFilterIdResponse = UserFilterIdResponse
+  { userFilterIdResponse ∷ FilterId
+  }
+  deriving stock (Generic, Show, Eq)
+
+instance ToJSON UserFilterIdResponse where toJSON = myGenericToJSON
+instance FromJSON UserFilterIdResponse where parseJSON = myGenericParseJSON
+
+
+-- ** Get user filter
+
+type GetUserFilter
+  = ClientV3
+  ( Authenticated
+  ( "user"
+  :> Capture "userId" Mxid
+  -- ↑ The ID of the user uploading the filter (just self MXID associated with the access token)
+  :> "filter"
+  :> Capture "filterId" FilterId
+  :> Post '[JSON] UserFilter
+  ))
+
+
+-- ** Shared types
+
+-- TODO model it further
+data UserFilter = UserFilter
+  { userFilterAccountData ∷ Maybe () -- EventFilter
+  , userFilterEventFields ∷ Maybe () -- [string]
+  , userFilterEventFormat ∷ Maybe () -- enum One of: [client federation]
+  , userFilterPresence ∷ Maybe () -- EventFilter
+  , userFilterRoom ∷ Maybe () -- RoomFilter
+  }
+  deriving stock (Generic, Show, Eq)
+
+instance ToJSON UserFilter where toJSON = myGenericToJSON
+instance FromJSON UserFilter where parseJSON = myGenericParseJSON
+
+
 -- ** m.text
 
 data MTextType = MTextType
