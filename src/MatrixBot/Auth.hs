@@ -29,6 +29,7 @@ import MatrixBot.AesonUtils (myGenericToJSON, myGenericParseJSON)
 import MatrixBot.Log
 import qualified MatrixBot.MatrixApi as Api
 import qualified MatrixBot.MatrixApi.Client as Api
+import qualified MatrixBot.MatrixApi.Types.MEventTypes as Api
 import qualified MatrixBot.SharedTypes as T
 
 
@@ -50,7 +51,7 @@ authenticate mxid password = do
 
   response ←
     Api.runMatrixApiClientDoNotShowReqBody' req (Proxy @Api.LoginApi) $ \f → f Api.LoginRequest
-      { Api.loginRequestType = Api.MLoginPasswordType
+      { Api.loginRequestType = Api.MLoginPasswordTypeOneOf
       , Api.loginRequestUser = T.mxidUsername mxid
       , Api.loginRequestPassword = password
       }

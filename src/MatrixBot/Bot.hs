@@ -55,6 +55,7 @@ import MatrixBot.Log
 import qualified MatrixBot.Auth as Auth
 import qualified MatrixBot.MatrixApi as Api
 import qualified MatrixBot.MatrixApi.Client as Api
+import qualified MatrixBot.MatrixApi.Types.MEventTypes as Api
 import qualified MatrixBot.SharedTypes as T
 
 
@@ -184,12 +185,13 @@ sendReaction req auth transactionId roomId eventId reactionText = do
     ]
 
   response ←
-    Api.runMatrixApiClient' req (Proxy @(Api.SendEventApi Api.MReactionType)) $ \f → f
+    let proxy = Proxy @(Api.SendEventApi (Api.MEventTypeOneOf '[ 'Api.MReactionType ])) in
+    Api.runMatrixApiClient' req proxy $ \f → f
       auth
       roomId
-      Api.MReactionType
+      Api.MReactionTypeOneOf
       transactionId
-      (Api.MReactionContent $ Api.RelatesTo eventId reactionText Api.MAnnotationType)
+      (Api.MReactionContent $ Api.RelatesTo eventId reactionText Api.MAnnotationTypeOneOf)
 
   response <$ logEventResponse response
 
@@ -210,10 +212,11 @@ sendMessage req auth transactionId roomId msg = do
     ]
 
   response ←
-    Api.runMatrixApiClient' req (Proxy @(Api.SendEventApi Api.MRoomMessageType)) $ \f → f
+    let proxy = Proxy @(Api.SendEventApi (Api.MEventTypeOneOf '[ 'Api.MRoomMessageType ])) in
+    Api.runMatrixApiClient' req proxy $ \f → f
       auth
       roomId
-      Api.MRoomMessageType
+      Api.MRoomMessageTypeOneOf
       transactionId
       (Api.MRoomMessageContent Api.MTextType msg)
 
@@ -330,7 +333,8 @@ eventsListener eventTokenFile eventsTimeout botConfig req auth jobsQueue = do
             eventId = runIdentity . Api.clientEventGenericEventId $ g
 
           logDebug $ mconcat
-            [ "Received " , Api.printMRoomMessageType . Api.mRoomMessageClientEventType $ m
+            [ "Received "
+            , Api.mEventTypeToString . Api.mEventTypeOneOfToMEventType . Api.mRoomMessageClientEventType $ m
             , " event type from room ", T.printRoomId roomId
             , " from user ", T.printMxid user
             , " (event ID: ", T.unEventId eventId, ")"

@@ -34,6 +34,7 @@ library
     MatrixBot.Log
     MatrixBot.MatrixApi
     MatrixBot.MatrixApi.Client
+    MatrixBot.MatrixApi.Types.MEventTypes
     MatrixBot.Options
     MatrixBot.SharedTypes
   build-depends:

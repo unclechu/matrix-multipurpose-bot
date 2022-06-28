@@ -2,9 +2,12 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE GADTs #-}
 {-# LANGUAGE InstanceSigs #-}
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE NoMonomorphismRestriction #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE PolyKinds #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE TypeApplications #-}
@@ -31,6 +34,7 @@ import qualified Data.Aeson.KeyMap as KM
 import Servant.API
 
 import MatrixBot.AesonUtils (myGenericToJSON, myGenericParseJSON)
+import MatrixBot.MatrixApi.Types.MEventTypes
 import MatrixBot.SharedTypes
 
 
@@ -53,19 +57,8 @@ type LoginApi
   )
 
 
-data MLoginPasswordType = MLoginPasswordType
-  deriving stock (Show, Eq, Typeable, Enum, Bounded)
-
-instance ToHttpApiData MLoginPasswordType where toUrlPiece = printMLoginPasswordType
-instance ToJSON MLoginPasswordType where toJSON = String . printMLoginPasswordType
-instance FromJSON MLoginPasswordType where parseJSON = mTypeGenericParseJSON
-
-printMLoginPasswordType ∷ MLoginPasswordType → Text
-printMLoginPasswordType MLoginPasswordType = "m.login.password"
-
-
 data LoginRequest = LoginRequest
-  { loginRequestType ∷ MLoginPasswordType
+  { loginRequestType ∷ MEventTypeOneOf '[ 'MLoginPasswordType ]
   , loginRequestUser ∷ Username
   , loginRequestPassword ∷ Password
   }
@@ -200,7 +193,7 @@ instance FromJSON (ClientEventGeneric Maybe) where parseJSON = myGenericParseJSO
 
 -- | r.room.message event
 data MRoomMessageClientEvent = MRoomMessageClientEvent
-  { mRoomMessageClientEventType ∷ MRoomMessageType
+  { mRoomMessageClientEventType ∷ MEventTypeOneOf '[ 'MRoomMessageType ]
   , mRoomMessageClientEventContent ∷ MRoomMessageClientEventContent
   }
   deriving stock (Generic, Show, Eq)
@@ -336,20 +329,6 @@ printMTextType ∷ MTextType → Text
 printMTextType MTextType = "m.text"
 
 
--- ** m.room.message
-
-
-data MRoomMessageType = MRoomMessageType
-  deriving stock (Show, Eq, Typeable, Enum, Bounded)
-
-instance ToHttpApiData MRoomMessageType where toUrlPiece = printMRoomMessageType
-instance ToJSON MRoomMessageType where toJSON = String . printMRoomMessageType
-instance FromJSON MRoomMessageType where parseJSON = mTypeGenericParseJSON
-
-printMRoomMessageType ∷ MRoomMessageType → Text
-printMRoomMessageType MRoomMessageType = "m.room.message"
-
-
 -- ** m.room.message content
 
 data MRoomMessageContent = MRoomMessageContent
@@ -362,33 +341,7 @@ instance ToJSON MRoomMessageContent where toJSON = myGenericToJSON
 instance FromJSON MRoomMessageContent where parseJSON = myGenericParseJSON
 
 
-type instance EventContent MRoomMessageType = MRoomMessageContent
-
-
--- ** m.reaction
-
--- *** Type
-
-data MReactionType = MReactionType
-  deriving stock (Show, Eq, Typeable, Enum, Bounded)
-
-instance ToHttpApiData MReactionType where toUrlPiece = printMReactionType
-instance ToJSON MReactionType where toJSON = String . printMReactionType
-instance FromJSON MReactionType where parseJSON = mTypeGenericParseJSON
-
-printMReactionType ∷ MReactionType → Text
-printMReactionType MReactionType = "m.reaction"
-
-
-data MAnnotationType = MAnnotationType
-  deriving stock (Show, Eq, Typeable, Enum, Bounded)
-
-instance ToHttpApiData MAnnotationType where toUrlPiece = printMAnnotationType
-instance ToJSON MAnnotationType where toJSON = String . printMAnnotationType
-instance FromJSON MAnnotationType where parseJSON = mTypeGenericParseJSON
-
-printMAnnotationType ∷ MAnnotationType → Text
-printMAnnotationType MAnnotationType = "m.annotation"
+type instance EventContent (MEventTypeOneOf '[ 'MRoomMessageType ]) = MRoomMessageContent
 
 
 --- *** Content
@@ -409,13 +362,13 @@ mRelatedToKey ∷ IsString s ⇒ s
 mRelatedToKey = "m.relates_to"
 
 
-type instance EventContent MReactionType = MReactionContent
+type instance EventContent (MEventTypeOneOf '[ 'MReactionType ]) = MReactionContent
 
 
 data RelatesTo = RelatesTo
   { relatesToEventId ∷ EventId
   , relatesToKey ∷ Text
-  , relatesToRelType ∷ MAnnotationType
+  , relatesToRelType ∷ MEventTypeOneOf '[ 'MAnnotationType ]
   }
   deriving stock (Generic, Show, Eq)
 
