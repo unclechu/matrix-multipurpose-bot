@@ -489,8 +489,11 @@ ignoreSendSameReactionTwiceError
   ⇒ m ()
   → m ()
 ignoreSendSameReactionTwiceError =
-  flip E.catch $ \e@(Servant.FailureResponse _req response) →
+  flip E.catch $ \e →
     maybe (E.throwM e) logCaughtException $ do
+      response ← case e of
+        Servant.FailureResponse _req response → pure response
+        _ → Nothing
       guard $ (Http.statusCode . Servant.responseStatusCode) response == 400
       x ← decode @ErrorResponse . Servant.responseBody $ response
       guard $ errorResponseErrcode x == "M_UNKNOWN"
