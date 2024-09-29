@@ -34,6 +34,7 @@ library
     MatrixBot.Bot.BotConfig
     MatrixBot.Bot.BotM
     MatrixBot.Bot.EventsListener
+    MatrixBot.Bot.EventsListener.Handlers.ReactToUsers
     MatrixBot.Bot.Jobs.BotJob
     MatrixBot.Bot.Jobs.Handlers.MainHandler
     MatrixBot.Bot.Jobs.Handlers.SendMessage

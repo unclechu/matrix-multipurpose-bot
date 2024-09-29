@@ -12,21 +12,17 @@ module MatrixBot.Bot.EventsListener
   ( eventsListener
   ) where
 
-import Control.Monad (forM_)
 import Control.Monad.IO.Class (MonadIO (liftIO))
-import Control.Monad.Trans.Class (lift)
-import qualified Control.Monad.Trans.Except as Except
 import Data.Aeson (eitherDecodeStrict, encodeFile)
 import qualified Data.ByteString as BS
 import Data.Data (Proxy(Proxy))
 import Data.Function (fix)
 import Data.Functor ((<&>))
 import Data.Functor.Identity (Identity(runIdentity))
-import qualified Data.List.NonEmpty as NE
 import Data.Text (pack)
 import qualified MatrixBot.Bot.BotConfig as BotConfig
 import MatrixBot.Bot.BotM (BotM)
-import MatrixBot.Bot.Jobs.BotJob (BotJob (BotJobSendReaction))
+import MatrixBot.Bot.EventsListener.Handlers.ReactToUsers (reactToUsers)
 import MatrixBot.Bot.Retry (retryOnClientError)
 import qualified MatrixBot.Log as L
 import qualified MatrixBot.MatrixApi as Api
@@ -36,9 +32,7 @@ import qualified MatrixBot.SharedTypes as T
 import Servant.API (AuthProtect)
 import Servant.Client.Core (AuthenticatedRequest)
 import System.Directory (doesFileExist)
-import qualified UnliftIO.STM as STM
-import MatrixBot.Bot.Jobs.Queue (HasBotJobsWriter (botJobsWriter))
-import qualified Control.Lens as Lens
+import MatrixBot.Bot.Jobs.Queue (HasBotJobsWriter)
 
 
 -- | Matrix rooms events listener handler
@@ -175,70 +169,18 @@ handleEvent botConfig ev = do
     Api.ClientEventMRoomMessage g m → do
       let
         roomId = runIdentity . Api.clientEventGenericRoomId $ g
-        user = runIdentity . Api.clientEventGenericSender $ g
+        userId = runIdentity . Api.clientEventGenericSender $ g
         eventId = runIdentity . Api.clientEventGenericEventId $ g
 
       L.logDebug $ mconcat
         [ "Received "
         , Api.mEventTypeToString . Api.mEventTypeOneOfToMEventType . Api.mRoomMessageClientEventType $ m
         , " event type from room ", T.printRoomId roomId
-        , " from user ", T.printMxid user
+        , " from user ", T.printMxid userId
         , " (event ID: ", T.unEventId eventId, ")"
-        , " going through “react to users” configuration to see if this event is matching…"
         ]
 
-      let
-        resolveFilter =
-          flip either pure $
-            L.logDebug . ("Event mismatched filter (skipping this reaction config): " <>)
-
-        handleReactToUsersItem reaction = (resolveFilter =<<) $ Except.runExceptT $ do
-          L.logDebug $ "Handling reaction config: " <> (pack . show) reaction
-
-          case BotConfig.botConfigReactToUsersUsersFilter reaction of
-            Nothing →
-              L.logDebug "There is no user filter, filter passed…"
-            Just x | user `elem` x →
-              L.logDebug $ mconcat
-                [ "User ", T.printMxid user
-                , " is one of these (filter passed): ", pack . show $ x
-                ]
-            Just x →
-              Except.throwE $ mconcat
-                [ "User ", T.printMxid user
-                , " is not one of these: ", pack . show $ x
-                ]
-
-          case BotConfig.botConfigReactToUsersRoomsFilter reaction of
-            Nothing →
-              L.logDebug "There is no room filter, filter passed…"
-            Just x | roomId `elem` x →
-              L.logDebug $ mconcat
-                [ "Room ", T.printRoomId roomId
-                , " is one of these (filter passed): ", pack . show $ x
-                ]
-            Just x →
-              Except.throwE $ mconcat
-                [ "Room ", T.printRoomId roomId
-                , " is not one of these: ", pack . show $ x
-                ]
-
-          let reactions = BotConfig.botConfigReactToUsersLeaveReactions reaction
-
-          L.logDebug $ mconcat
-            [ "Leaving ", (pack . show . NE.toList) reactions
-            , " reactions for event ", T.unEventId eventId
-            , " in room ", T.printRoomId roomId
-            , "…"
-            ]
-
-          lift . forM_ reactions $ \reactionText → do
-            transactionId ← T.genTransactionId
-            Lens.view botJobsWriter >>= \sendJob →
-              STM.atomically . sendJob $
-                BotJobSendReaction transactionId roomId eventId reactionText
-
-      mapM_ handleReactToUsersItem $ BotConfig.botConfigReactToUsers botConfig
+      reactToUsers (BotConfig.botConfigReactToUsers botConfig) roomId userId eventId
 
     Api.ClientEventOther g _ →
       L.logDebug $ "No need to handle " <> Api.clientEventGenericType g <> " event type (skipped)"
