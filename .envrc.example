@@ -1,2 +1,8 @@
 watch_file matrix-bot.cabal
+watch_file default.nix
+watch_file nix/*
+
 use nix
+#
+# Or for example to use Stack:
+#   use nix --arg buildTools '[ "cabal" "stack" ]'

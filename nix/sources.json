@@ -1,14 +1,14 @@
 {
     "nixpkgs": {
-        "branch": "release-22.05",
+        "branch": "nixos-24.05",
         "description": "Nix Packages collection",
         "homepage": "",
         "owner": "NixOS",
         "repo": "nixpkgs",
-        "rev": "041ac28bb534c30e4502cb4bbe0d403a834e586e",
-        "sha256": "10xbmcr960391im983qy0bx1g8rbqnavl8ww0hqzqrhsx3658db3",
+        "rev": "fbca5e745367ae7632731639de5c21f29c8744ed",
+        "sha256": "07wa6y7q4ql0x1jj08dignak2lra003inf2cxl4xxvyqdsspshp3",
         "type": "tarball",
-        "url": "https://github.com/NixOS/nixpkgs/archive/041ac28bb534c30e4502cb4bbe0d403a834e586e.tar.gz",
+        "url": "https://github.com/NixOS/nixpkgs/archive/fbca5e745367ae7632731639de5c21f29c8744ed.tar.gz",
         "url_template": "https://github.com/<owner>/<repo>/archive/<rev>.tar.gz"
     }
 }

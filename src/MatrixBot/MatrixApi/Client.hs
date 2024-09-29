@@ -152,10 +152,22 @@ mkMatrixApiClient reqOpts homeServer = do
               ServantRequest.RequestBodySource _ → "<REDACTED STREAM>"
 
             fPath = toLazyByteString
-          in
+          in do
+            -- @defaultMakeClientRequest@ actually runs no side-effects.
+            -- This is just for unwrapping @Request@ from @IO@.
+            --
+            -- Previously the type of @defaultMakeClientRequest@ was
+            -- @BaseUrl → Request → Request@ but later it became
+            -- @BaseUrl → Request → IO Request@.
+            -- It has only @return …@ inside, no actual side-effects
+            -- so I have no idea why there has to be a breaking change with zero
+            -- necessity as it seems judjing by current implementation.
+            -- See https://github.com/haskell-servant/servant/issues/1787
+            clientRequest ← liftIO $ defaultMakeClientRequest baseUrl' req
+
             logDebug $ mconcat
               [ "Making a client request: "
-              , pack . show . defaultMakeClientRequest baseUrl' $ req
+              , pack . show $ clientRequest
               , pack . show . bimap fReqBody fPath $ req
               ]
         Free.Free (ServantFree.Throw x) →

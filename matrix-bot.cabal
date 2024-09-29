@@ -15,7 +15,7 @@ license-file: LICENSE
 author: Viacheslav Lotsmanov
 maintainer: lotsmanov89@gmail.com
 
-copyright: (c) 2022 Viacheslav Lotsmanov
+copyright: (c) 2022-2024 Viacheslav Lotsmanov
 
 -- category:
 
@@ -40,7 +40,7 @@ library
   build-depends:
     , aeson
     , attoparsec
-    , base ^>=4.15.1.0
+    , base >=4.15.1.0
     , base64
     , binary
     , bytestring
@@ -78,7 +78,7 @@ executable matrix-bot
   main-is:
     Main.hs
   build-depends:
-    , base ^>=4.15.1.0
+    , base >=4.15.1.0
     , matrix-bot
   ghc-options:
     -Wall
