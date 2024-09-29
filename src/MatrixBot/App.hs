@@ -42,6 +42,9 @@ import qualified MatrixBot.Auth as Auth
 import qualified MatrixBot.Bot as Bot
 import qualified MatrixBot.Options as O
 import qualified MatrixBot.SharedTypes as T
+import MatrixBot.Bot.Jobs.Handlers.SendMessage (sendMessage)
+import qualified MatrixBot.Bot.Jobs.Queue as BotJobsQueue
+import qualified Control.Lens as Lens
 
 
 type AppM m =
@@ -171,8 +174,10 @@ runStart opts = do
   botConfig ←
     either fail pure =<< liftIO (eitherDecodeFileStrict . O.startOptionsBotConfigFile $ opts)
 
+  botJobsQueue ← BotJobsQueue.mkBotJobsQueue
+
   Bot.startTheBot eventTokenFile eventsTimeout botConfig
-    `MR.runReaderT` BotEnv credentials retryLimit retryDelay
+    `MR.runReaderT` BotEnv credentials retryLimit retryDelay botJobsQueue
 
 
 runSendMessage
@@ -223,7 +228,7 @@ runSendMessage opts = do
               , pack . show . T.unTransactionId $ txid
               ]
 
-      response ← Bot.sendMessage req auth transactionId roomId message
+      response ← sendMessage req auth transactionId roomId message
 
       logDebug "Printing response and transaction ID to stdout…"
 
@@ -241,8 +246,8 @@ data BotEnv = BotEnv
   { botEnvCredentials ∷ Auth.Credentials
   , botEnvRetryLimit ∷ T.RetryLimit
   , botEnvRetryDelay ∷ T.RetryDelay
+  , botEnvJobsQueue ∷ BotJobsQueue.BotJobsQueue
   }
-  deriving stock (Eq, Show)
 
 instance Auth.HasCredentials BotEnv where
   credentials = lens botEnvCredentials $ \x v → x { botEnvCredentials = v }
@@ -250,6 +255,12 @@ instance Auth.HasCredentials BotEnv where
 instance T.HasRetryParams BotEnv where
   retryLimit = lens botEnvRetryLimit $ \x v → x { botEnvRetryLimit = v }
   retryDelay = lens botEnvRetryDelay $ \x v → x { botEnvRetryDelay = v }
+
+instance BotJobsQueue.HasBotJobsReader BotEnv where
+  botJobsReader = Lens.to botEnvJobsQueue . BotJobsQueue.botJobsReader
+
+instance BotJobsQueue.HasBotJobsWriter BotEnv where
+  botJobsWriter = Lens.to botEnvJobsQueue . BotJobsQueue.botJobsWriter
 
 
 data SendMessageResponse = SendMessageResponse

@@ -31,6 +31,17 @@ library
     MatrixBot.App
     MatrixBot.Auth
     MatrixBot.Bot
+    MatrixBot.Bot.BotConfig
+    MatrixBot.Bot.BotM
+    MatrixBot.Bot.EventsListener
+    MatrixBot.Bot.Jobs.BotJob
+    MatrixBot.Bot.Jobs.Handlers.MainHandler
+    MatrixBot.Bot.Jobs.Handlers.SendMessage
+    MatrixBot.Bot.Jobs.Handlers.SendReaction
+    MatrixBot.Bot.Jobs.Log
+    MatrixBot.Bot.Jobs.Queue
+    MatrixBot.Bot.Retry
+    MatrixBot.Bot.SmokeTest
     MatrixBot.Log
     MatrixBot.MatrixApi
     MatrixBot.MatrixApi.Client
