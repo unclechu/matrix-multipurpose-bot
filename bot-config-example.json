@@ -17,5 +17,20 @@
         "Everyone Everywhere"
       ]
     }
+  ],
+  "reply_to_media": [
+    {
+      "users_filter": [
+        "@username:matrix.org"
+      ],
+      "rooms_filter": [
+        "!xxxxxxxxxxxxxxxxxx:matrix.org"
+      ],
+      "message_template": [
+        "Direct HTTP link to the file: ",
+        "https://matrix-client.matrix.org/_matrix/media/r0/download/matrix.org/",
+        {"extracted_value": "media_id"}
+      ]
+    }
   ]
 }
