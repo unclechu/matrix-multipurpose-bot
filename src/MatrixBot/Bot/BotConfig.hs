@@ -18,7 +18,7 @@ import MatrixBot.AesonUtils (myGenericToJSON, myGenericParseJSON)
 
 -- | Bot configuration
 newtype BotConfig = BotConfig
-  { botConfigReactToUsers ∷ [BotConfigReactToUsers]
+  { botConfigReactToUsers ∷ Maybe [BotConfigReactToUsers]
   }
   deriving stock (Generic, Eq, Show)
 

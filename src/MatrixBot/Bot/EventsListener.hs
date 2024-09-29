@@ -33,6 +33,7 @@ import Servant.API (AuthProtect)
 import Servant.Client.Core (AuthenticatedRequest)
 import System.Directory (doesFileExist)
 import MatrixBot.Bot.Jobs.Queue (HasBotJobsWriter)
+import Data.Maybe (fromMaybe)
 
 
 -- | Matrix rooms events listener handler
@@ -180,7 +181,7 @@ handleEvent botConfig ev = do
         , " (event ID: ", T.unEventId eventId, ")"
         ]
 
-      reactToUsers (BotConfig.botConfigReactToUsers botConfig) roomId userId eventId
+      reactToUsers (fromMaybe [] $ BotConfig.botConfigReactToUsers botConfig) roomId userId eventId
 
     Api.ClientEventOther g _ →
       L.logDebug $ "No need to handle " <> Api.clientEventGenericType g <> " event type (skipped)"

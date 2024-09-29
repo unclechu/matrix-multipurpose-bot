@@ -33,6 +33,11 @@ reactToUsers
   → T.EventId
   -- ^ Unique identifier of the event
   → m ()
+reactToUsers [] _ _ _ =
+  L.logDebug $ mconcat
+    [ "There is no configuration entries for “react to users” feature. "
+    , "No reactions will be left for the event."
+    ]
 reactToUsers configEntries roomId userId eventId = do
   L.logDebug "Going through “react to users” configuration to see if this event is matching…"
   mapM_ handleReactToUsersItem configEntries
