@@ -29,7 +29,7 @@ import Data.Text (Text)
 import Data.Typeable (Typeable, typeRep)
 import GHC.Generics (Generic)
 import MatrixBot.AesonUtils (myGenericToJSON, myGenericParseJSON)
-import qualified MatrixBot.SharedTypes as T
+import MatrixBot.Bot.EventsListener.Filters (UsersFilter, RoomsFilter)
 
 
 -- | Bot configuration
@@ -148,7 +148,3 @@ parseJsonFromVariantsEqualityCheck variants jsonValue =
         [ "Failed to parse ", (show . typeRep) (Proxy @a), " "
         , "(unexpected value: ", show jsonValue, ")"
         ]
-
-
-type UsersFilter = NE.NonEmpty T.Mxid
-type RoomsFilter = NE.NonEmpty T.RoomId

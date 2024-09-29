@@ -19,6 +19,7 @@ import qualified MatrixBot.Log as L
 import qualified MatrixBot.SharedTypes as T
 import qualified UnliftIO.STM as STM
 import MatrixBot.Bot.Jobs.Queue (HasBotJobsWriter (botJobsWriter))
+import qualified MatrixBot.Bot.EventsListener.Filters as Filters
 
 
 -- | Process @m.room.message@ event and see if there is a need to leave a reaction for it.
@@ -40,45 +41,20 @@ reactToUsers [] _ _ _ =
     ]
 reactToUsers configEntries roomId userId eventId = do
   L.logDebug "Going through “react to users” configuration to see if this event is matching…"
-  mapM_ handleReactToUsersItem configEntries
+  mapM_ handleEntry configEntries
 
   where
     resolveFilter =
       flip either pure $
-        L.logDebug . ("Event mismatched filter (skipping this reaction config): " <>)
+        L.logDebug . ("Event mismatched filter (skipping this reaction config entry): " <>)
 
-    handleReactToUsersItem reaction = (resolveFilter =<<) $ Except.runExceptT $ do
-      L.logDebug $ "Handling reaction config: " <> (pack . show) reaction
+    handleEntry entry = (resolveFilter =<<) $ Except.runExceptT $ do
+      L.logDebug $ "Handling reaction config entry: " <> (pack . show) entry
 
-      case botConfigReactToUsersUsersFilter reaction of
-        Nothing →
-          L.logDebug "There is no user filter, filter passed…"
-        Just x | userId `elem` x →
-          L.logDebug $ mconcat
-            [ "User ", T.printMxid userId
-            , " is one of these (filter passed): ", pack . show $ x
-            ]
-        Just x →
-          Except.throwE $ mconcat
-            [ "User ", T.printMxid userId
-            , " is not one of these: ", pack . show $ x
-            ]
+      Filters.filterByUser (botConfigReactToUsersUsersFilter entry) userId
+      Filters.filterByRoom (botConfigReactToUsersRoomsFilter entry) roomId
 
-      case botConfigReactToUsersRoomsFilter reaction of
-        Nothing →
-          L.logDebug "There is no room filter, filter passed…"
-        Just x | roomId `elem` x →
-          L.logDebug $ mconcat
-            [ "Room ", T.printRoomId roomId
-            , " is one of these (filter passed): ", pack . show $ x
-            ]
-        Just x →
-          Except.throwE $ mconcat
-            [ "Room ", T.printRoomId roomId
-            , " is not one of these: ", pack . show $ x
-            ]
-
-      let reactions = botConfigReactToUsersLeaveReactions reaction
+      let reactions = botConfigReactToUsersLeaveReactions entry
 
       L.logDebug $ mconcat
         [ "Leaving ", (pack . show . NE.toList) reactions
