@@ -206,6 +206,8 @@ instance FromJSON MRoomMessageClientEvent where parseJSON = myGenericParseJSON
 data MRoomMessageClientEventContent
   = MRoomMessageClientEventContentMText MRoomMessageMTextMsgtypeClientEventContent
   | MRoomMessageClientEventContentMImage MRoomMessageMImageMsgtypeClientEventContent
+  | MRoomMessageClientEventContentMVideo MRoomMessageMVideoMsgtypeClientEventContent
+  | MRoomMessageClientEventContentMAudio MRoomMessageMAudioMsgtypeClientEventContent
   | MRoomMessageClientEventContentOther Object
   deriving stock (Generic, Show, Eq)
 
@@ -213,6 +215,8 @@ instance ToJSON MRoomMessageClientEventContent where
   toJSON = \case
     MRoomMessageClientEventContentMText x → toJSON x
     MRoomMessageClientEventContentMImage x → toJSON x
+    MRoomMessageClientEventContentMVideo x → toJSON x
+    MRoomMessageClientEventContentMAudio x → toJSON x
     MRoomMessageClientEventContentOther x → toJSON x
 
 instance FromJSON MRoomMessageClientEventContent where
@@ -220,10 +224,12 @@ instance FromJSON MRoomMessageClientEventContent where
   parseJSON jsonInput = case jsonInput of
     Object (KM.lookup "msgtype" → fmap (== toJSON MTextType) → Just True) →
       MRoomMessageClientEventContentMText <$> parseJSON jsonInput
-
     Object (KM.lookup "msgtype" → fmap (== toJSON MImageType) → Just True) →
       MRoomMessageClientEventContentMImage <$> parseJSON jsonInput
-
+    Object (KM.lookup "msgtype" → fmap (== toJSON MVideoType) → Just True) →
+      MRoomMessageClientEventContentMVideo <$> parseJSON jsonInput
+    Object (KM.lookup "msgtype" → fmap (== toJSON MAudioType) → Just True) →
+      MRoomMessageClientEventContentMAudio <$> parseJSON jsonInput
     Object _ → MRoomMessageClientEventContentOther <$> parseJSON jsonInput
     _ → typeMismatch (show . typeRep $ Proxy @a) jsonInput
 
@@ -249,6 +255,30 @@ data MRoomMessageMImageMsgtypeClientEventContent = MRoomMessageMImageMsgtypeClie
 
 instance ToJSON MRoomMessageMImageMsgtypeClientEventContent where toJSON = myGenericToJSON
 instance FromJSON MRoomMessageMImageMsgtypeClientEventContent where parseJSON = myGenericParseJSON
+
+
+-- | m.room.message m.video msgtype content
+data MRoomMessageMVideoMsgtypeClientEventContent = MRoomMessageMVideoMsgtypeClientEventContent
+  { mRoomMessageMVideoMsgtypeClientEventContentMsgtype ∷ MVideoType
+  , mRoomMessageMVideoMsgtypeClientEventContentBody ∷ Text -- ^ File name
+  , mRoomMessageMVideoMsgtypeClientEventContentUrl ∷ Text -- ^ Matrix internal URL to an media file
+  }
+  deriving stock (Generic, Show, Eq)
+
+instance ToJSON MRoomMessageMVideoMsgtypeClientEventContent where toJSON = myGenericToJSON
+instance FromJSON MRoomMessageMVideoMsgtypeClientEventContent where parseJSON = myGenericParseJSON
+
+
+-- | m.room.message m.audio msgtype content
+data MRoomMessageMAudioMsgtypeClientEventContent = MRoomMessageMAudioMsgtypeClientEventContent
+  { mRoomMessageMAudioMsgtypeClientEventContentMsgtype ∷ MAudioType
+  , mRoomMessageMAudioMsgtypeClientEventContentBody ∷ Text -- ^ File name
+  , mRoomMessageMAudioMsgtypeClientEventContentUrl ∷ Text -- ^ Matrix internal URL to an media file
+  }
+  deriving stock (Generic, Show, Eq)
+
+instance ToJSON MRoomMessageMAudioMsgtypeClientEventContent where toJSON = myGenericToJSON
+instance FromJSON MRoomMessageMAudioMsgtypeClientEventContent where parseJSON = myGenericParseJSON
 
 
 -- * Send event
@@ -358,6 +388,28 @@ instance MsgtypeString MImageType where msgtypeString MImageType = "m.image"
 instance ToHttpApiData MImageType where toUrlPiece = msgtypeString
 instance ToJSON MImageType where toJSON = String . msgtypeString
 instance FromJSON MImageType where parseJSON = mTypeGenericParseJSON
+
+
+-- ** m.video
+
+data MVideoType = MVideoType
+  deriving stock (Show, Eq, Typeable, Enum, Bounded)
+
+instance MsgtypeString MVideoType where msgtypeString MVideoType = "m.video"
+instance ToHttpApiData MVideoType where toUrlPiece = msgtypeString
+instance ToJSON MVideoType where toJSON = String . msgtypeString
+instance FromJSON MVideoType where parseJSON = mTypeGenericParseJSON
+
+
+-- ** m.audio
+
+data MAudioType = MAudioType
+  deriving stock (Show, Eq, Typeable, Enum, Bounded)
+
+instance MsgtypeString MAudioType where msgtypeString MAudioType = "m.audio"
+instance ToHttpApiData MAudioType where toUrlPiece = msgtypeString
+instance ToJSON MAudioType where toJSON = String . msgtypeString
+instance FromJSON MAudioType where parseJSON = mTypeGenericParseJSON
 
 
 -- ** m.room.message content

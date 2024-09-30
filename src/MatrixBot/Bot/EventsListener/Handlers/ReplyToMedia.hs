@@ -3,6 +3,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE ViewPatterns #-}
 
 module MatrixBot.Bot.EventsListener.Handlers.ReplyToMedia
   ( replyToMedia
@@ -46,16 +47,9 @@ replyToMedia [] _ _ _ _ =
     ]
 replyToMedia configEntries roomId userId eventId clientContent = do
   case clientContent of
-    Api.MRoomMessageClientEventContentMImage x →
-      let
-        mediaData = MediaEventData
-          { msgtype = (Api.msgtypeString . Api.mRoomMessageMImageMsgtypeClientEventContentMsgtype) x
-          , body = Api.mRoomMessageMImageMsgtypeClientEventContentBody x
-          , url = Api.mRoomMessageMImageMsgtypeClientEventContentUrl x
-          }
-      in
-        withExtractedMediaValues mediaData $ \extractMediaValues →
-          logProcessing >> mapM_ (handleEntry mediaData extractMediaValues) configEntries
+    (mkMediaEventDataFromClientContent → Just mediaData) →
+      withExtractedMediaValues mediaData $ \extractMediaValues →
+        logProcessing >> mapM_ (handleEntry mediaData extractMediaValues) configEntries
     _ →
       L.logDebug $ mconcat
         [ "This event type is not a detected media file one. "
@@ -126,6 +120,29 @@ data MediaEventData = MediaEventData
   , url ∷ Text
   }
   deriving stock (Show, Eq)
+
+
+mkMediaEventDataFromClientContent ∷ Api.MRoomMessageClientEventContent → Maybe MediaEventData
+mkMediaEventDataFromClientContent = \case
+  Api.MRoomMessageClientEventContentMImage x →
+    Just $ MediaEventData
+      { msgtype = (Api.msgtypeString . Api.mRoomMessageMImageMsgtypeClientEventContentMsgtype) x
+      , body = Api.mRoomMessageMImageMsgtypeClientEventContentBody x
+      , url = Api.mRoomMessageMImageMsgtypeClientEventContentUrl x
+      }
+  Api.MRoomMessageClientEventContentMVideo x →
+    Just $ MediaEventData
+      { msgtype = (Api.msgtypeString . Api.mRoomMessageMVideoMsgtypeClientEventContentMsgtype) x
+      , body = Api.mRoomMessageMVideoMsgtypeClientEventContentBody x
+      , url = Api.mRoomMessageMVideoMsgtypeClientEventContentUrl x
+      }
+  Api.MRoomMessageClientEventContentMAudio x →
+    Just $ MediaEventData
+      { msgtype = (Api.msgtypeString . Api.mRoomMessageMAudioMsgtypeClientEventContentMsgtype) x
+      , body = Api.mRoomMessageMAudioMsgtypeClientEventContentBody x
+      , url = Api.mRoomMessageMAudioMsgtypeClientEventContentUrl x
+      }
+  _ → Nothing
 
 
 -- | Some details extracted out of "MediaEventData" value
