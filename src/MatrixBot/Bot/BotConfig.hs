@@ -80,9 +80,12 @@ instance J.FromJSON BotConfigReplyToMedia where parseJSON = myGenericParseJSON
 
 -- | Either a plain string or a special entry for a dynamic value substitution
 data BotConfigReplyToMedia_MessageTemplateEntry
-  = BotConfigReplyToMedia_MessageTemplateEntry_PlainString Text
-  | BotConfigReplyToMedia_MessageTemplateEntry_DynamicSubstitution_Field BotConfigReplyToMedia_DynamicFieldName
-  | BotConfigReplyToMedia_MessageTemplateEntry_DynamicSubstitution_ExtractedValue BotConfigReplyToMedia_DynamicExtractedValueName
+  = BotConfigReplyToMedia_MessageTemplateEntry_PlainString
+      Text
+  | BotConfigReplyToMedia_MessageTemplateEntry_DynamicSubstitution_Field
+      BotConfigReplyToMedia_DynamicFieldName
+  | BotConfigReplyToMedia_MessageTemplateEntry_DynamicSubstitution_ExtractedValue
+      BotConfigReplyToMedia_DynamicExtractedValueName
   deriving stock (Generic, Eq, Show)
 
 instance J.ToJSON BotConfigReplyToMedia_MessageTemplateEntry where
@@ -101,15 +104,18 @@ instance J.FromJSON BotConfigReplyToMedia_MessageTemplateEntry where
 
 
 data BotConfigReplyToMedia_DynamicFieldName
-  = BotConfigReplyToMedia_DynamicFieldName_Body
-  -- ^ @body@ — Contains file name
-  | BotConfigReplyToMedia_DynamicFieldName_MsgType
+  = BotConfigReplyToMedia_DynamicFieldName_MsgType
   -- ^ @msgtype@ — For example @m.image@
+  | BotConfigReplyToMedia_DynamicFieldName_Body
+  -- ^ @body@ — Contains file name
+  | BotConfigReplyToMedia_DynamicFieldName_Url
+  -- ^ @body@ — Contains file name
   deriving stock (Generic, Eq, Show, Bounded, Enum)
 
 instance J.ToJSON BotConfigReplyToMedia_DynamicFieldName where
-  toJSON BotConfigReplyToMedia_DynamicFieldName_Body = J.String "body"
   toJSON BotConfigReplyToMedia_DynamicFieldName_MsgType = J.String "msgtype"
+  toJSON BotConfigReplyToMedia_DynamicFieldName_Body = J.String "body"
+  toJSON BotConfigReplyToMedia_DynamicFieldName_Url = J.String "url"
 
 instance J.FromJSON BotConfigReplyToMedia_DynamicFieldName where
   parseJSON = parseJsonEnum

@@ -27,7 +27,10 @@
         "!xxxxxxxxxxxxxxxxxx:matrix.org"
       ],
       "message_template": [
-        "Direct HTTP link to the file: ",
+        "“msgtype”: ", {"field": "msgtype"},
+        "\nFile name: ", {"field": "body"},
+        "\nMatrix URL: ", {"field": "url"},
+        "\n\nDirect HTTP link to the file:\n",
         "https://matrix-client.matrix.org/_matrix/media/r0/download/matrix.org/",
         {"extracted_value": "media_id"}
       ]

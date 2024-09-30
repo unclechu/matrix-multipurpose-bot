@@ -205,12 +205,14 @@ instance FromJSON MRoomMessageClientEvent where parseJSON = myGenericParseJSON
 -- | r.room.message “content” field of any msgtype
 data MRoomMessageClientEventContent
   = MRoomMessageClientEventContentMText MRoomMessageMTextMsgtypeClientEventContent
+  | MRoomMessageClientEventContentMImage MRoomMessageMImageMsgtypeClientEventContent
   | MRoomMessageClientEventContentOther Object
   deriving stock (Generic, Show, Eq)
 
 instance ToJSON MRoomMessageClientEventContent where
   toJSON = \case
     MRoomMessageClientEventContentMText x → toJSON x
+    MRoomMessageClientEventContentMImage x → toJSON x
     MRoomMessageClientEventContentOther x → toJSON x
 
 instance FromJSON MRoomMessageClientEventContent where
@@ -219,11 +221,14 @@ instance FromJSON MRoomMessageClientEventContent where
     Object (KM.lookup "msgtype" → fmap (== toJSON MTextType) → Just True) →
       MRoomMessageClientEventContentMText <$> parseJSON jsonInput
 
+    Object (KM.lookup "msgtype" → fmap (== toJSON MImageType) → Just True) →
+      MRoomMessageClientEventContentMImage <$> parseJSON jsonInput
+
     Object _ → MRoomMessageClientEventContentOther <$> parseJSON jsonInput
     _ → typeMismatch (show . typeRep $ Proxy @a) jsonInput
 
 
--- | m.room.message m.text msgtype
+-- | m.room.message m.text msgtype content
 data MRoomMessageMTextMsgtypeClientEventContent = MRoomMessageMTextMsgtypeClientEventContent
   { mRoomMessageMTextMsgtypeClientEventContentMsgtype ∷ MTextType
   , mRoomMessageMTextMsgtypeClientEventContentBody ∷ Text
@@ -232,6 +237,18 @@ data MRoomMessageMTextMsgtypeClientEventContent = MRoomMessageMTextMsgtypeClient
 
 instance ToJSON MRoomMessageMTextMsgtypeClientEventContent where toJSON = myGenericToJSON
 instance FromJSON MRoomMessageMTextMsgtypeClientEventContent where parseJSON = myGenericParseJSON
+
+
+-- | m.room.message m.image msgtype content
+data MRoomMessageMImageMsgtypeClientEventContent = MRoomMessageMImageMsgtypeClientEventContent
+  { mRoomMessageMImageMsgtypeClientEventContentMsgtype ∷ MImageType
+  , mRoomMessageMImageMsgtypeClientEventContentBody ∷ Text -- ^ File name
+  , mRoomMessageMImageMsgtypeClientEventContentUrl ∷ Text -- ^ Matrix internal URL to an media file
+  }
+  deriving stock (Generic, Show, Eq)
+
+instance ToJSON MRoomMessageMImageMsgtypeClientEventContent where toJSON = myGenericToJSON
+instance FromJSON MRoomMessageMImageMsgtypeClientEventContent where parseJSON = myGenericParseJSON
 
 
 -- * Send event
@@ -316,17 +333,31 @@ instance ToJSON UserFilter where toJSON = myGenericToJSON
 instance FromJSON UserFilter where parseJSON = myGenericParseJSON
 
 
+-- | Generic interface for @msgtype@ Matrix API string representation.
+class MsgtypeString a where
+  msgtypeString ∷ a → Text
+
+
 -- ** m.text
 
 data MTextType = MTextType
   deriving stock (Show, Eq, Typeable, Enum, Bounded)
 
-instance ToHttpApiData MTextType where toUrlPiece = printMTextType
-instance ToJSON MTextType where toJSON = String . printMTextType
+instance MsgtypeString MTextType where msgtypeString MTextType = "m.text"
+instance ToHttpApiData MTextType where toUrlPiece = msgtypeString
+instance ToJSON MTextType where toJSON = String . msgtypeString
 instance FromJSON MTextType where parseJSON = mTypeGenericParseJSON
 
-printMTextType ∷ MTextType → Text
-printMTextType MTextType = "m.text"
+
+-- ** m.image
+
+data MImageType = MImageType
+  deriving stock (Show, Eq, Typeable, Enum, Bounded)
+
+instance MsgtypeString MImageType where msgtypeString MImageType = "m.image"
+instance ToHttpApiData MImageType where toUrlPiece = msgtypeString
+instance ToJSON MImageType where toJSON = String . msgtypeString
+instance FromJSON MImageType where parseJSON = mTypeGenericParseJSON
 
 
 -- ** m.room.message content
