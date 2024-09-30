@@ -89,8 +89,7 @@ replyToMedia configEntries roomId userId eventId clientContent = do
       transactionId ← T.genTransactionId
       Lens.view botJobsWriter >>= \sendJob →
         STM.atomically . sendJob $
-          -- TODO: This is just a message, make it be a reply
-          BotJobSendMessage transactionId roomId replyMessage
+          BotJobSendMessage transactionId roomId (Just eventId) replyMessage
 
 
 renderTemplate

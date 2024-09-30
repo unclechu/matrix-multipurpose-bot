@@ -29,12 +29,17 @@ sendMessage
   → AuthenticatedRequest (AuthProtect "access-token")
   → T.TransactionId
   → T.RoomId
+  → Maybe T.EventId
+  -- ^ Reply to event
   → Text
   → m Api.EventResponse
-sendMessage req auth transactionId roomId msg = do
+sendMessage req auth transactionId roomId inReplyTo msg = do
   L.logDebug $ mconcat
-    [ "Sending message ", pack . show $ msg
-    , " to room ", pack . show . T.printRoomId $ roomId
+    [ "Sending message "
+    , maybe mempty (("in reply to " <>) . (<> " ") . pack . show) inReplyTo
+    , (pack . show) msg
+    , " to room "
+    , (pack . show . T.printRoomId) roomId
     , "…"
     ]
 
@@ -45,6 +50,6 @@ sendMessage req auth transactionId roomId msg = do
       roomId
       Api.MRoomMessageTypeOneOf
       transactionId
-      (Api.MRoomMessageContent Api.MTextType msg)
+      (Api.MRoomMessageContent Api.MTextType msg $ fmap Api.InReplyTo inReplyTo)
 
   response <$ logEventResponse response

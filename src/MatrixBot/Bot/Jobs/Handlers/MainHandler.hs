@@ -46,5 +46,5 @@ jobsHandler req auth = do
       >>= retryOnClientError . \case
             BotJobSendReaction transactionId roomId eventId reactionText →
               void $ sendReaction req auth transactionId roomId eventId reactionText
-            BotJobSendMessage transactionId roomId msg →
-              void $ sendMessage req auth transactionId roomId msg
+            BotJobSendMessage transactionId roomId inReplyTo msg →
+              void $ sendMessage req auth transactionId roomId inReplyTo msg

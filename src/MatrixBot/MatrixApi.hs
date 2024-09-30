@@ -16,6 +16,9 @@
 {-# LANGUAGE UnicodeSyntax #-}
 {-# LANGUAGE ViewPatterns #-}
 
+{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
+{-# HLINT ignore "Use <&>" #-}
+
 module MatrixBot.MatrixApi where
 
 import GHC.Generics
@@ -450,14 +453,54 @@ instance FromJSON MFileType where parseJSON = mTypeGenericParseJSON
 data MRoomMessageContent = MRoomMessageContent
   { mRoomMessageContentMsgtype ∷ MTextType
   , mRoomMessageContentBody ∷ Text
+  , mRoomMessageContentMRelatesTo ∷ Maybe InReplyTo
   }
   deriving stock (Generic, Show, Eq)
 
-instance ToJSON MRoomMessageContent where toJSON = myGenericToJSON
-instance FromJSON MRoomMessageContent where parseJSON = myGenericParseJSON
+instance ToJSON MRoomMessageContent where
+  toJSON x = object $
+    [ "msgtype" .= mRoomMessageContentMsgtype x
+    , "body" .= mRoomMessageContentBody x
+    ]
+    <>
+    case mRoomMessageContentMRelatesTo x of
+      Nothing → mempty
+      Just y →
+        [ mRelatedToKey .= object
+            [ mInReplyToKey .= toJSON y
+            ]
+        ]
+
+instance FromJSON MRoomMessageContent where
+  parseJSON jsonValue@(Object x) = MRoomMessageContent
+    <$> x .: "msgtype"
+    <*> x .: "body"
+    <*> inReplyToParser
+    where
+      inReplyToParser =
+        x .:? mRelatedToKey >>= \case
+          Nothing → pure Nothing
+          Just Null → pure Nothing
+          Just (Object y) → y .: mInReplyToKey >>= fmap Just . parseJSON @InReplyTo
+          _ → fail $ "Failed to parse MRoomMessageContent from " <> show jsonValue
+
+  parseJSON jsonValue = fail $ "Failed to parse MRoomMessageContent from " <> show jsonValue
 
 
 type instance EventContent (MEventTypeOneOf '[ 'MRoomMessageType ]) = MRoomMessageContent
+
+
+newtype InReplyTo = InReplyTo
+  { inReplyToEventId ∷ EventId
+  }
+  deriving stock (Generic, Show, Eq)
+
+instance ToJSON InReplyTo where toJSON = myGenericToJSON
+instance FromJSON InReplyTo where parseJSON = myGenericParseJSON
+
+
+mInReplyToKey ∷ IsString s ⇒ s
+mInReplyToKey = "m.in_reply_to"
 
 
 --- *** Content
