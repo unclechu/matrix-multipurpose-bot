@@ -72,6 +72,8 @@ data BotConfigReplyToMedia = BotConfigReplyToMedia
 
   , botConfigReplyToMediaMessageTemplate ∷ [BotConfigReplyToMedia_MessageTemplateEntry]
   -- ^ Message template, a list of entries that will be just concatenated
+  , botConfigReplyToMediaHtmlMessageTemplate ∷ Maybe [BotConfigReplyToMedia_MessageTemplateEntry]
+  -- ^ Optional HTML-formatted message template, to be paired with the plain text template
   }
   deriving stock (Generic, Eq, Show)
 

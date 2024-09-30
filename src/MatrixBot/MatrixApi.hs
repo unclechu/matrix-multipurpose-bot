@@ -453,6 +453,7 @@ instance FromJSON MFileType where parseJSON = mTypeGenericParseJSON
 data MRoomMessageContent = MRoomMessageContent
   { mRoomMessageContentMsgtype ∷ MTextType
   , mRoomMessageContentBody ∷ Text
+  , mRoomMessageContentHtmlBody ∷ Maybe Text
   , mRoomMessageContentMRelatesTo ∷ Maybe InReplyTo
   }
   deriving stock (Generic, Show, Eq)
@@ -463,6 +464,16 @@ instance ToJSON MRoomMessageContent where
     , "body" .= mRoomMessageContentBody x
     ]
     <>
+    (
+    case mRoomMessageContentHtmlBody x of
+      Nothing → mempty
+      Just htmlString →
+        [ "format" .= String htmlBodyFormatValue
+        , "formatted_body" .= htmlString
+        ]
+    )
+    <>
+    (
     case mRoomMessageContentMRelatesTo x of
       Nothing → mempty
       Just y →
@@ -470,13 +481,22 @@ instance ToJSON MRoomMessageContent where
             [ mInReplyToKey .= toJSON y
             ]
         ]
+    )
 
 instance FromJSON MRoomMessageContent where
   parseJSON jsonValue@(Object x) = MRoomMessageContent
     <$> x .: "msgtype"
     <*> x .: "body"
+    <*> htmlBodyParser
     <*> inReplyToParser
+
     where
+      htmlBodyParser = do
+        ((,) <$> x .:? "format" <*> x .:? "formatted_body") >>= \case
+          (Nothing, Nothing) → pure Nothing
+          (Just ((== (htmlBodyFormatValue ∷ Text)) → True), htmlBody@(Just @Text _)) → pure htmlBody
+          _ → fail $ "Failed to parse MRoomMessageContent from " <> show jsonValue
+
       inReplyToParser =
         x .:? mRelatedToKey >>= \case
           Nothing → pure Nothing
@@ -501,6 +521,10 @@ instance FromJSON InReplyTo where parseJSON = myGenericParseJSON
 
 mInReplyToKey ∷ IsString s ⇒ s
 mInReplyToKey = "m.in_reply_to"
+
+
+htmlBodyFormatValue ∷ IsString s ⇒ s
+htmlBodyFormatValue = "org.matrix.custom.html"
 
 
 --- *** Content

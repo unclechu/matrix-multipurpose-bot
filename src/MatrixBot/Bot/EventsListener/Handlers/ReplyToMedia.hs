@@ -23,6 +23,7 @@ import qualified MatrixBot.Log as L
 import qualified MatrixBot.MatrixApi as Api
 import qualified MatrixBot.SharedTypes as T
 import qualified UnliftIO.STM as STM
+import Data.Functor ((<&>))
 
 
 -- | Process @m.room.message@ event and see if there is a need to reply to an event with a message
@@ -79,8 +80,13 @@ replyToMedia configEntries roomId userId eventId clientContent = do
             mediaEventData
             extractedMediaValues
 
+        htmlReplyMessage =
+          BotConfig.botConfigReplyToMediaHtmlMessageTemplate entry <&> \x →
+            renderTemplate x mediaEventData extractedMediaValues
+
       L.logDebug $ mconcat
         [ "Sending a reply message ", (pack . show) replyMessage
+        , maybe mempty (("(html version: " <>) . (<> ")") . pack . show) htmlReplyMessage
         , " for event ", T.unEventId eventId
         , " in room ", T.printRoomId roomId
         , "…"
@@ -89,7 +95,7 @@ replyToMedia configEntries roomId userId eventId clientContent = do
       transactionId ← T.genTransactionId
       Lens.view botJobsWriter >>= \sendJob →
         STM.atomically . sendJob $
-          BotJobSendMessage transactionId roomId (Just eventId) replyMessage
+          BotJobSendMessage transactionId roomId (Just eventId) htmlReplyMessage replyMessage
 
 
 renderTemplate

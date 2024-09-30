@@ -31,9 +31,11 @@ sendMessage
   → T.RoomId
   → Maybe T.EventId
   -- ^ Reply to event
+  → Maybe Text
+  -- ^ Optional HTML-formatted body to be paired with plain text body
   → Text
   → m Api.EventResponse
-sendMessage req auth transactionId roomId inReplyTo msg = do
+sendMessage req auth transactionId roomId inReplyTo htmlBody msg = do
   L.logDebug $ mconcat
     [ "Sending message "
     , maybe mempty (("in reply to " <>) . (<> " ") . pack . show) inReplyTo
@@ -50,6 +52,6 @@ sendMessage req auth transactionId roomId inReplyTo msg = do
       roomId
       Api.MRoomMessageTypeOneOf
       transactionId
-      (Api.MRoomMessageContent Api.MTextType msg $ fmap Api.InReplyTo inReplyTo)
+      (Api.MRoomMessageContent Api.MTextType msg htmlBody $ fmap Api.InReplyTo inReplyTo)
 
   response <$ logEventResponse response

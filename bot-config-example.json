@@ -39,6 +39,14 @@
         "\n\nDirect HTTP link to the file:\n",
         "https://matrix-client.matrix.org/_matrix/media/r0/download/matrix.org/",
         {"extracted_value": "media_id"}
+      ],
+      "html_message_template": [
+        "“msgtype”: <code>", {"field": "msgtype"}, "</code>",
+        "<br/>File name: <code>", {"field": "body"}, "</code>",
+        "<br/>Matrix URL: <code>", {"field": "url"}, "</code>",
+        "<br/><a href=\"https://matrix-client.matrix.org/_matrix/media/r0/download/matrix.org/",
+        {"extracted_value": "media_id"},
+        "\">Direct HTTP link to the file</a>"
       ]
     }
   ]

@@ -19,6 +19,8 @@
   - [x] Filter events by `msgtype` (equality check, see `msgtype_filter`)
   - [x] Message is generated using a template allowing dynamic values
         substitution (see `message_template`)
+  - [x] HTML-formatted message template in addition to the plain text one
+        (see `html_message_template`)
 
 ## How to build & run
 

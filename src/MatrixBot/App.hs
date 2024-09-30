@@ -228,7 +228,7 @@ runSendMessage opts = do
               , pack . show . T.unTransactionId $ txid
               ]
 
-      response ← sendMessage req auth transactionId roomId Nothing message
+      response ← sendMessage req auth transactionId roomId Nothing Nothing message
 
       logDebug "Printing response and transaction ID to stdout…"
 
