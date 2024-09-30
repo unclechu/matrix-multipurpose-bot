@@ -14,5 +14,6 @@ result*
 auth.json
 auth*.json
 bot-config.json
-
+bot-config*.json
 event-token.json
+event-token*.json
