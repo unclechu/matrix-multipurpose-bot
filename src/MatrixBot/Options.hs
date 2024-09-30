@@ -201,6 +201,8 @@ data SendMessageOptions = SendMessageOptions
   , sendMessageOptionsRoomId ∷ RoomId
   , sendMessageOptionsMessage ∷ Either Text FilePath
   -- ^ Either as plan value or a file to read it from (e.g. /dev/stdin)
+  , sendMessageOptionsHtmlMessage ∷ Maybe (Either Text FilePath)
+  -- ^ Optional HTML-formatted message in addition to the plain text one
   , sendMessageOptionsTransactionId ∷ Maybe TransactionId
   }
   deriving stock (Eq, Show)
@@ -211,6 +213,7 @@ sendMessageOptionsParser = go where
     <$> credentialsFile
     <*> roomId
     <*> message
+    <*> htmlMessage
     <*> transactionId
 
   credentialsFile = strOption $ mconcat
@@ -227,7 +230,13 @@ sendMessageOptionsParser = go where
     , metavar "ROOM_ID"
     ]
 
+  message ∷ Parser (Either Text FilePath)
   message = fmap Left messageValue <|> fmap Right messageFile
+
+  htmlMessage ∷ Parser (Maybe (Either Text FilePath))
+  htmlMessage =
+    fmap Just (fmap Left htmlMessageValue <|> fmap Right htmlMessageFile)
+    <|> pure Nothing
 
   messageValue = strOption $ mconcat
     [ long "message"
@@ -236,12 +245,24 @@ sendMessageOptionsParser = go where
     , metavar "TEXT"
     ]
 
+  htmlMessageValue = strOption $ mconcat
+    [ long "html-message"
+    , help "HTML-formatted message to pair with plain text one"
+    , metavar "HTML"
+    ]
+
   messageFile = strOption $ mconcat
     [ long "message-file"
     , short 'f'
     , help "Path to a file to read text message from to send it to the room (e.g. /dev/stdin)"
     , value "/dev/stdin"
     , showDefault
+    , metavar "FILE"
+    ]
+
+  htmlMessageFile = strOption $ mconcat
+    [ long "html-message-file"
+    , help "Path to a file to read HTML-formatted message from to pair with plain text one"
     , metavar "FILE"
     ]
 

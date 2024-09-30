@@ -212,6 +212,25 @@ runSendMessage opts = do
           ]
         liftIO $ TextIO.readFile file
 
+  htmlMessage ←
+    case O.sendMessageOptionsHtmlMessage opts of
+      Nothing → pure Nothing
+      Just (Left x) →
+        (Just x <$) . logDebug $ mconcat
+          [ "HTML-formatted message to send to "
+          , (pack . show . T.printRoomId) roomId
+          , " room was provided as an option argument"
+          ]
+      Just (Right file) → do
+        logDebug $ mconcat
+          [ "Reading HTML-formatted message to send to "
+          , (pack . show . T.printRoomId) roomId
+          , " room from "
+          , (pack . show) file
+          , " file…"
+          ]
+        fmap Just . liftIO $ TextIO.readFile file
+
   flip MR.runReaderT credentials $
     Bot.withReqAndAuth (T.EventsTimeout . T.Seconds $ 30) $ \req auth → do
       transactionId ←
@@ -228,7 +247,7 @@ runSendMessage opts = do
               , pack . show . T.unTransactionId $ txid
               ]
 
-      response ← sendMessage req auth transactionId roomId Nothing Nothing message
+      response ← sendMessage req auth transactionId roomId Nothing htmlMessage message
 
       logDebug "Printing response and transaction ID to stdout…"
 
