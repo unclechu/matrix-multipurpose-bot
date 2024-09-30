@@ -142,6 +142,12 @@ mkMediaEventDataFromClientContent = \case
       , body = Api.mRoomMessageMAudioMsgtypeClientEventContentBody x
       , url = Api.mRoomMessageMAudioMsgtypeClientEventContentUrl x
       }
+  Api.MRoomMessageClientEventContentMFile x →
+    Just $ MediaEventData
+      { msgtype = (Api.msgtypeString . Api.mRoomMessageMFileMsgtypeClientEventContentMsgtype) x
+      , body = Api.mRoomMessageMFileMsgtypeClientEventContentBody x
+      , url = Api.mRoomMessageMFileMsgtypeClientEventContentUrl x
+      }
   _ → Nothing
 
 
