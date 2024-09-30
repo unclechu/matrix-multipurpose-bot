@@ -26,6 +26,12 @@
       "rooms_filter": [
         "!xxxxxxxxxxxxxxxxxx:matrix.org"
       ],
+      "msgtype_filter": [
+        "m.file",
+        "m.image",
+        "m.audio",
+        "m.video"
+      ],
       "message_template": [
         "“msgtype”: ", {"field": "msgtype"},
         "\nFile name: ", {"field": "body"},

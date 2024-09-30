@@ -70,9 +70,7 @@ replyToMedia configEntries roomId userId eventId clientContent = do
 
       Filters.filterByUser (BotConfig.botConfigReplyToMediaUsersFilter entry) userId
       Filters.filterByRoom (BotConfig.botConfigReplyToMediaRoomsFilter entry) roomId
-
-      L.logWarn $ pack . show $ mediaEventData
-      L.logWarn $ pack . show $ extractedMediaValues
+      Filters.filterByMediaMsgtype (BotConfig.botConfigReplyToMediaMsgtypeFilter entry) clientContent
 
       let
         replyMessage =
@@ -148,7 +146,8 @@ mkMediaEventDataFromClientContent = \case
       , body = Api.mRoomMessageMFileMsgtypeClientEventContentBody x
       , url = Api.mRoomMessageMFileMsgtypeClientEventContentUrl x
       }
-  _ → Nothing
+  Api.MRoomMessageClientEventContentMText _ → Nothing
+  Api.MRoomMessageClientEventContentOther _ → Nothing
 
 
 -- | Some details extracted out of "MediaEventData" value

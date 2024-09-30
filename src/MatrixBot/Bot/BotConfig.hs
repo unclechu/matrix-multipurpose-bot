@@ -29,7 +29,7 @@ import Data.Text (Text)
 import Data.Typeable (Typeable, typeRep)
 import GHC.Generics (Generic)
 import MatrixBot.AesonUtils (myGenericToJSON, myGenericParseJSON)
-import MatrixBot.Bot.EventsListener.Filters (UsersFilter, RoomsFilter)
+import MatrixBot.Bot.EventsListener.Filters (UsersFilter, RoomsFilter, MediaMsgtypeFilter)
 
 
 -- | Bot configuration
@@ -68,6 +68,7 @@ instance J.FromJSON BotConfigReactToUsers where parseJSON = myGenericParseJSON
 data BotConfigReplyToMedia = BotConfigReplyToMedia
   { botConfigReplyToMediaUsersFilter ∷ Maybe UsersFilter
   , botConfigReplyToMediaRoomsFilter ∷ Maybe RoomsFilter
+  , botConfigReplyToMediaMsgtypeFilter ∷ Maybe MediaMsgtypeFilter
 
   , botConfigReplyToMediaMessageTemplate ∷ [BotConfigReplyToMedia_MessageTemplateEntry]
   -- ^ Message template, a list of entries that will be just concatenated
