@@ -231,6 +231,11 @@ runSendMessage opts = do
           ]
         fmap Just . liftIO $ TextIO.readFile file
 
+  replyTo ←
+    case O.sendMessageOptionsReplyTo opts of
+      Nothing → pure Nothing
+      Just x → (Just x <$) $ logDebug $ mconcat ["Replying to ", (pack . show) x]
+
   flip MR.runReaderT credentials $
     Bot.withReqAndAuth (T.EventsTimeout . T.Seconds $ 30) $ \req auth → do
       transactionId ←
@@ -247,7 +252,7 @@ runSendMessage opts = do
               , pack . show . T.unTransactionId $ txid
               ]
 
-      response ← sendMessage req auth transactionId roomId Nothing htmlMessage message
+      response ← sendMessage req auth transactionId roomId replyTo htmlMessage message
 
       logDebug "Printing response and transaction ID to stdout…"
 

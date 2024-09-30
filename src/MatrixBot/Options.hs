@@ -199,6 +199,8 @@ startOptionsParser = go where
 data SendMessageOptions = SendMessageOptions
   { sendMessageOptionsCredentialsFile ∷ FilePath
   , sendMessageOptionsRoomId ∷ RoomId
+  , sendMessageOptionsReplyTo ∷ Maybe EventId
+  -- ^ Optionaly make the message a reply to a specified event
   , sendMessageOptionsMessage ∷ Either Text FilePath
   -- ^ Either as plan value or a file to read it from (e.g. /dev/stdin)
   , sendMessageOptionsHtmlMessage ∷ Maybe (Either Text FilePath)
@@ -212,6 +214,7 @@ sendMessageOptionsParser = go where
   go = SendMessageOptions
     <$> credentialsFile
     <*> roomId
+    <*> replyTo
     <*> message
     <*> htmlMessage
     <*> transactionId
@@ -228,6 +231,13 @@ sendMessageOptionsParser = go where
     , short 'r'
     , help "Room identifier (e.g. !ffffffffffffffffff:matrix.org) where to send text message to"
     , metavar "ROOM_ID"
+    ]
+
+  replyTo ∷ Parser (Maybe EventId)
+  replyTo = (<|> pure Nothing) $ fmap (Just . EventId) $ strOption $ mconcat
+    [ long "reply-to"
+    , help "Event ID this message is replying to"
+    , metavar "EVENT_ID"
     ]
 
   message ∷ Parser (Either Text FilePath)
