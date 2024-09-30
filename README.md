@@ -7,8 +7,18 @@
 ## What it can do?
 
 - [x] Leave multiple reactions under user messages
-  - [x] Filter users by their MXIDs (equality check)
-  - [x] Filter events by room IDs (equality check)
+      (see `react_to_users` section in [example bot config])
+  - [x] Filter users by their MXIDs (equality check, see `users_filter`)
+  - [x] Filter events by room IDs (equality check, see `rooms_filter`)
+- [x] Reply with a message to media events (uploaded files)
+      (see `reply_to_media` section in [example bot config])
+      which can be useful for posting direct HTTP links to the files
+      in case room history permissions are allowing such direct access
+  - [x] Filter users by their MXIDs (equality check, see `users_filter`)
+  - [x] Filter events by room IDs (equality check, see `rooms_filter`)
+  - [x] Filter events by `msgtype` (equality check, see `msgtype_filter`)
+  - [x] Message is generated using a template allowing dynamic values
+        substitution (see `message_template`)
 
 ## How to build & run
 
@@ -76,7 +86,7 @@ You can check for in [nixpkgs pin](nix/sources.json) and find what versions you 
    N.B. Password is read from stdin by default. In the example above `pass` utility used to pass the
    password to stdin of `matrix-bot`. `jq` is used to prettify the credentials JSON.
 
-2. Copy-paste the [example bot config](bot-config-example.json) to `bot-config.json` for instance
+2. Copy-paste the [example bot config] to `bot-config.json` for instance
    and configure the bot properly in that `bot-config.json` file.
 
 3. Start the bot using credentials file and bot config file:
@@ -103,3 +113,5 @@ matrix-bot start --help
 ## Author
 
 Viacheslav Lotsmanov
+
+[example bot config]: bot-config-example.json
