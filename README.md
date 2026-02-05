@@ -21,6 +21,8 @@
         substitution (see `message_template`)
   - [x] HTML-formatted message template in addition to the plain text one
         (see `html_message_template`)
+- [x] Send messages via CLI call
+- [ ] Send message edits via CLI call
 
 ## How to build & run
 
@@ -79,23 +81,40 @@ You can check for in [nixpkgs pin](nix/sources.json) and find what versions you 
 
 ## Usage example
 
-1. Authenticate first, save the authentication credentials to a file:
+For any interaction you would need to be authenticated, so you need to provide
+your authentication token. So authenticate first and save the authentication
+credentials and the token to a file (`auth.json` in this usage example):
 
-   ``` sh
-   pass show my-matrix-password | matrix-bot auth -u @username:matrix.org | jq > auth.json
-   ```
+``` sh
+pass show my-matrix-password | matrix-bot auth -u @username:matrix.org | jq > auth.json
+```
 
-   N.B. Password is read from stdin by default. In the example above `pass` utility used to pass the
-   password to stdin of `matrix-bot`. `jq` is used to prettify the credentials JSON.
+N.B. Password is read from stdin by default. In the example above `pass` utility used to pass the
+password to stdin of `matrix-bot`. `jq` is used to prettify the credentials JSON.
 
-2. Copy-paste the [example bot config] to `bot-config.json` for instance
-   and configure the bot properly in that `bot-config.json` file.
+### Start the bot as a service
 
-3. Start the bot using credentials file and bot config file:
+Copy-paste the [example bot config] to `bot-config.json` for instance
+and configure the bot properly in that `bot-config.json` file.
 
-   ``` sh
-   matrix-bot start --credentials auth.json --bot-config bot-config.json
-   ```
+Then start the bot using credentials file and bot config file:
+
+``` sh
+matrix-bot start --credentials auth.json --bot-config bot-config.json
+```
+
+### Send messages via CLI
+
+An example how to send a message to a room
+(where room ID is `!ffffffffffffffffff:matrix.org` and `auth.json` contains
+the authentication token you received by calling `matrix-bot auth`)
+
+``` sh
+ROOM_ID='!ffffffffffffffffff:matrix.org'
+TEXT_MSG='Hello, World!'
+HTML_MSG='<b>Hello, World!</b>'
+matrix-bot send-message --credentials ./auth.json -r "$ROOM_ID" -m "$TEXT_MSG" --html-message "$HTML_MSG"
+```
 
 ## Usage help
 
