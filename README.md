@@ -124,7 +124,7 @@ ROOM_ID='!ffffffffffffffffff:matrix.org'
 MSG_ID='xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
 TEXT_MSG='Ahoy there!'
 HTML_MSG='<b>Ahoy there!</b>'
-matrix-bot edit-message --credentials ./auth.json -r "$ROOM_ID" -m "$TEXT_MSG" --html-message "$HTML_MSG"
+matrix-bot edit-message --credentials ./auth.json -r "$ROOM_ID" --id "$MSG_ID" -m "$TEXT_MSG" --html-message "$HTML_MSG"
 ```
 
 Send a message and immediately edit:
