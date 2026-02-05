@@ -47,4 +47,4 @@ jobsHandler req auth = do
             BotJobSendReaction transactionId roomId eventId reactionText →
               void $ sendReaction req auth transactionId roomId eventId reactionText
             BotJobSendMessage transactionId roomId inReplyTo htmlBody msg →
-              void $ sendMessage req auth transactionId roomId inReplyTo htmlBody msg
+              void $ sendMessage req auth transactionId roomId inReplyTo htmlBody msg Nothing

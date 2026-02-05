@@ -455,33 +455,38 @@ data MRoomMessageContent = MRoomMessageContent
   , mRoomMessageContentBody ∷ Text
   , mRoomMessageContentHtmlBody ∷ Maybe Text
   , mRoomMessageContentMRelatesTo ∷ Maybe InReplyTo
+  , mRoomMessageContentMessageEdit ∷ Maybe MessageEdit
   }
   deriving stock (Generic, Show, Eq)
 
 instance ToJSON MRoomMessageContent where
-  toJSON x = object $
-    [ "msgtype" .= mRoomMessageContentMsgtype x
-    , "body" .= mRoomMessageContentBody x
-    ]
-    <>
-    (
-    case mRoomMessageContentHtmlBody x of
-      Nothing → mempty
-      Just htmlString →
-        [ "format" .= String htmlBodyFormatValue
-        , "formatted_body" .= htmlString
+  toJSON x = merge
+    where
+      merge =
+        case (messageObject, editObject) of
+          (Object a, Object b) → Object (a <> b)
+          _ → Null
+      messageObject = object (content <> htmlContent <> inReplyTo)
+      editObject = maybe (object []) toJSON (mRoomMessageContentMessageEdit x)
+      content =
+        [ "msgtype" .= mRoomMessageContentMsgtype x
+        , "body" .= mRoomMessageContentBody x
         ]
-    )
-    <>
-    (
-    case mRoomMessageContentMRelatesTo x of
-      Nothing → mempty
-      Just y →
-        [ mRelatedToKey .= object
-            [ mInReplyToKey .= toJSON y
+      htmlContent =
+        case mRoomMessageContentHtmlBody x of
+          Nothing → mempty
+          Just htmlString →
+            [ "format" .= String htmlBodyFormatValue
+            , "formatted_body" .= htmlString
             ]
-        ]
-    )
+      inReplyTo =
+        case mRoomMessageContentMRelatesTo x of
+          Nothing → mempty
+          Just y →
+            [ mRelatedToKey .= object
+                [ mInReplyToKey .= toJSON y
+                ]
+            ]
 
 instance FromJSON MRoomMessageContent where
   parseJSON jsonValue@(Object x) = MRoomMessageContent
@@ -489,6 +494,7 @@ instance FromJSON MRoomMessageContent where
     <*> x .: "body"
     <*> htmlBodyParser
     <*> inReplyToParser
+    <*> pure Nothing
 
     where
       htmlBodyParser = do
@@ -525,6 +531,47 @@ mInReplyToKey = "m.in_reply_to"
 
 htmlBodyFormatValue ∷ IsString s ⇒ s
 htmlBodyFormatValue = "org.matrix.custom.html"
+
+
+data MessageEdit = MessageEdit
+  { messageEditMsgtype ∷ MTextType
+  , messageEditNewContentBody ∷ Text
+  , messageEditNewContentHtmlBody ∷ Maybe Text
+  , messageEditRelatedTo ∷ EventId
+  }
+  deriving stock (Generic, Show, Eq)
+
+instance ToJSON MessageEdit where
+  toJSON x = object
+    [ mNewContentKey .= newContent
+    , mRelatedToKey .= relatesTo
+    ]
+    where
+      newContent = object $
+        [ "msgtype" .= messageEditMsgtype x
+        , "body" .= messageEditNewContentBody x
+        ]
+        <>
+        (
+        case messageEditNewContentHtmlBody x of
+          Nothing → mempty
+          Just htmlString →
+            [ "format" .= String htmlBodyFormatValue
+            , "formatted_body" .= htmlString
+            ]
+        )
+      relatesTo = object
+        [ "rel_type" .= (mReplaceType ∷ Text)
+        , "event_id" .= messageEditRelatedTo x
+        ]
+
+
+mNewContentKey ∷ IsString s ⇒ s
+mNewContentKey = "m.new_content"
+
+
+mReplaceType ∷ IsString s ⇒ s
+mReplaceType = "m.replace"
 
 
 --- *** Content

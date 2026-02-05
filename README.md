@@ -22,7 +22,8 @@
   - [x] HTML-formatted message template in addition to the plain text one
         (see `html_message_template`)
 - [x] Send messages via CLI call
-- [ ] Send message edits via CLI call
+- [x] Edit messages via CLI call
+- [ ] Work with encrypted events
 
 ## How to build & run
 
@@ -115,6 +116,29 @@ TEXT_MSG='Hello, World!'
 HTML_MSG='<b>Hello, World!</b>'
 matrix-bot send-message --credentials ./auth.json -r "$ROOM_ID" -m "$TEXT_MSG" --html-message "$HTML_MSG"
 ```
+
+### Edit messages via CLI
+
+``` sh
+ROOM_ID='!ffffffffffffffffff:matrix.org'
+MSG_ID='xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
+TEXT_MSG='Ahoy there!'
+HTML_MSG='<b>Ahoy there!</b>'
+matrix-bot edit-message --credentials ./auth.json -r "$ROOM_ID" -m "$TEXT_MSG" --html-message "$HTML_MSG"
+```
+
+Send a message and immediately edit:
+
+``` sh
+ROOM_ID='!ffffffffffffffffff:matrix.org'
+MSG_ID=$(matrix-bot send-message --credentials ./auth.json -r "$ROOM_ID" -m FOO | jq -r .response.event_id)
+matrix-bot edit-message --credentials ./auth.json -r "$ROOM_ID" --id "$MSG_ID" -m BAR
+```
+
+N.B. Note that you need to send any new edits using the original message ID.
+It won’t work if you try to read `.response.event_id` of your edit command result
+and try to use that ID to send another edit. Always use the first message event ID
+for all your edits.
 
 ## Usage help
 

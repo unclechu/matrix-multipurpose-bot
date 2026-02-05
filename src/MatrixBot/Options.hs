@@ -24,6 +24,7 @@ data AppCommand
   = AppCommandAuth AuthOptions
   | AppCommandStart StartOptions
   | AppCommandSendMessage SendMessageOptions
+  | AppCommandEditMessage EditMessageOptions
 
 appCommandParserInfo ∷ ParserInfo AppCommand
 appCommandParserInfo
@@ -32,7 +33,7 @@ appCommandParserInfo
 
 appCommandParser ∷ Parser AppCommand
 appCommandParser = go where
-  go = hsubparser $ authCommand <> startCommand <> sendMessageCommand
+  go = hsubparser $ authCommand <> startCommand <> sendMessageCommand <> editMessageCommand
 
   authCommand ∷ Mod CommandFields AppCommand
   authCommand
@@ -56,6 +57,14 @@ appCommandParser = go where
     $ info
         (AppCommandSendMessage <$> sendMessageOptionsParser)
         (progDesc "Send text message to a room\
+                  \ (will write a JSON object to stdout with transaction ID and server response)")
+
+  editMessageCommand ∷ Mod CommandFields AppCommand
+  editMessageCommand
+    = command "edit-message"
+    $ info
+        (AppCommandEditMessage <$> editMessageOptionsParser)
+        (progDesc "Edit existing text message event\
                   \ (will write a JSON object to stdout with transaction ID and server response)")
 
 
@@ -137,13 +146,6 @@ startOptionsParser = go where
     <*> eventToken
     <*> eventsTimeout
 
-  credentialsFile = strOption $ mconcat
-    [ long "credentials"
-    , short 'a'
-    , help "Credentials JSON file for bot authentication (call “auth” command to get one)"
-    , metavar "FILE"
-    ]
-
   botConfigFile = strOption $ mconcat
     [ long "bot-config"
     , short 'c'
@@ -202,9 +204,9 @@ data SendMessageOptions = SendMessageOptions
   , sendMessageOptionsReplyTo ∷ Maybe EventId
   -- ^ Optionaly make the message a reply to a specified event
   , sendMessageOptionsMessage ∷ Either Text FilePath
-  -- ^ Either as plan value or a file to read it from (e.g. /dev/stdin)
+  -- ^ Message body either as plain value or a file to read it from (e.g. /dev/stdin)
   , sendMessageOptionsHtmlMessage ∷ Maybe (Either Text FilePath)
-  -- ^ Optional HTML-formatted message in addition to the plain text one
+  -- ^ Optional HTML-formatted message body in addition to the plain text one
   , sendMessageOptionsTransactionId ∷ Maybe TransactionId
   }
   deriving stock (Eq, Show)
@@ -218,20 +220,6 @@ sendMessageOptionsParser = go where
     <*> message
     <*> htmlMessage
     <*> transactionId
-
-  credentialsFile = strOption $ mconcat
-    [ long "credentials"
-    , short 'a'
-    , help "Credentials JSON file for authentication (call “auth” command to get one)"
-    , metavar "FILE"
-    ]
-
-  roomId = option (eitherReader $ AP.parseOnly roomIdParser . pack) $ mconcat
-    [ long "room-id"
-    , short 'r'
-    , help "Room identifier (e.g. !ffffffffffffffffff:matrix.org) where to send text message to"
-    , metavar "ROOM_ID"
-    ]
 
   replyTo ∷ Parser (Maybe EventId)
   replyTo = (<|> pure Nothing) $ fmap (Just . EventId) $ strOption $ mconcat
@@ -276,16 +264,157 @@ sendMessageOptionsParser = go where
     , metavar "FILE"
     ]
 
-  transactionId = option (Just . TransactionId <$> maybeReader fromString) $ mconcat
-    [ long "transaction-id"
-    , short 't'
-    , help $ unwords
-        [ "Transaction ID (any random UUID) for atomicity of the request"
-        , "(if not provided new random one will be generated)"
-        ]
-    , metavar "UUID"
-    , value Nothing
+
+-- * Edit existing message command options
+
+data EditMessageOptions = EditMessageOptions
+  { editMessageOptionsCredentialsFile ∷ FilePath
+  , editMessageOptionsRoomId ∷ RoomId
+  , editMessageOptionsMessageId ∷ EventId
+  -- ^ Original message event that we are editing
+  , editMessageOptionsReplyTo ∷ Maybe EventId
+  -- ^ Optionaly make the message a reply to a specified event
+  , editMessageOptionsMessage ∷ Either Text FilePath
+  -- ^ New message body either as a plain value or a file to read it from (e.g. /dev/stdin)
+  , editMessageOptionsHtmlMessage ∷ Maybe (Either Text FilePath)
+  -- ^ Optional new HTML-formatted message body in addition to the plain text one
+  , editMessageOptionsMessageCompat ∷ Maybe (Either Text FilePath)
+  -- ^ Old API compatibility new message body (default template is used if not specified)
+  , editMessageOptionsHtmlMessageCompat ∷ Maybe (Either Text FilePath)
+  -- ^ Old API compatibility new HTML-formatted message body (default template is used if not specified)
+  , editMessageOptionsTransactionId ∷ Maybe TransactionId
+  }
+  deriving stock (Eq, Show)
+
+editMessageOptionsParser ∷ Parser EditMessageOptions
+editMessageOptionsParser = go where
+  go = EditMessageOptions
+    <$> credentialsFile
+    <*> roomId
+    <*> messageId
+    <*> replyTo
+    <*> message
+    <*> htmlMessage
+    <*> compatMessage
+    <*> compatHtmlMessage
+    <*> transactionId
+
+  messageId ∷ Parser EventId
+  messageId = fmap EventId $ strOption $ mconcat
+    [ long "id"
+    , help "Event ID of the message that is about to be edited"
+    , metavar "EVENT_ID"
     ]
+
+  replyTo ∷ Parser (Maybe EventId)
+  replyTo = (<|> pure Nothing) $ fmap (Just . EventId) $ strOption $ mconcat
+    [ long "reply-to"
+    , help "Event ID this message is replying to"
+    , metavar "EVENT_ID"
+    ]
+
+  message ∷ Parser (Either Text FilePath)
+  message = fmap Left messageValue <|> fmap Right messageFile
+
+  htmlMessage ∷ Parser (Maybe (Either Text FilePath))
+  htmlMessage =
+    fmap Just (fmap Left htmlMessageValue <|> fmap Right htmlMessageFile)
+    <|> pure Nothing
+
+  messageValue = strOption $ mconcat
+    [ long "message"
+    , short 'm'
+    , help "New message plain text body"
+    , metavar "TEXT"
+    ]
+
+  htmlMessageValue = strOption $ mconcat
+    [ long "html-message"
+    , help "New message HTML-formatted body to pair with plain text one"
+    , metavar "HTML"
+    ]
+
+  messageFile = strOption $ mconcat
+    [ long "message-file"
+    , short 'f'
+    , help "Path to a file to read new text message body from to send it to the room (e.g. /dev/stdin)"
+    , value "/dev/stdin"
+    , showDefault
+    , metavar "FILE"
+    ]
+
+  htmlMessageFile = strOption $ mconcat
+    [ long "html-message-file"
+    , help "Path to a file to read new HTML-formatted message body from to pair with plain text one"
+    , metavar "FILE"
+    ]
+
+  compatMessage ∷ Parser (Maybe (Either Text FilePath))
+  compatMessage =
+    fmap Just (fmap Left compatMessageValue <|> fmap Right compatMessageFile)
+    <|> pure Nothing
+
+  compatHtmlMessage ∷ Parser (Maybe (Either Text FilePath))
+  compatHtmlMessage =
+    fmap Just (fmap Left compatHtmlMessageValue <|> fmap Right compatHtmlMessageFile)
+    <|> pure Nothing
+
+  compatMessageValue = strOption $ mconcat
+    [ long "compat-message"
+    , help "Old API compatible new message plain text body (when message edits are not supported), “EDIT:” prefix template is used when not specified"
+    , metavar "TEXT"
+    ]
+
+  compatHtmlMessageValue = strOption $ mconcat
+    [ long "compat-html-message"
+    , help "Old API compatible new message HTML-formatted body to pair with plain text one (when message edits are not supported), “<b>EDIT:</b>” prefix template is used when not specified"
+    , metavar "HTML"
+    ]
+
+  compatMessageFile = strOption $ mconcat
+    [ long "compat-message-file"
+    , help "Path to a file to read new text message body from to send it to the room (e.g. /dev/stdin)"
+    , metavar "FILE"
+    ]
+
+  compatHtmlMessageFile = strOption $ mconcat
+    [ long "compat-html-message-file"
+    , help "Path to a file to read new HTML-formatted message body from to pair with plain text one"
+    , metavar "FILE"
+    ]
+
+
+-- * Re-usable parsers
+
+credentialsFile ∷ Parser FilePath
+credentialsFile = strOption $ mconcat
+  [ long "credentials"
+  , short 'a'
+  , help "Credentials JSON file for authentication (call “auth” command to get one)"
+  , metavar "FILE"
+  ]
+
+
+roomId ∷ Parser RoomId
+roomId = option (eitherReader $ AP.parseOnly roomIdParser . pack) $ mconcat
+  [ long "room-id"
+  , short 'r'
+  , help "Room identifier (e.g. !ffffffffffffffffff:matrix.org) where to send text message to"
+  , metavar "ROOM_ID"
+  ]
+
+
+transactionId ∷ Parser (Maybe TransactionId)
+transactionId = option (Just . TransactionId <$> maybeReader fromString) $ mconcat
+  [ long "transaction-id"
+  , short 't'
+  , help $ unwords
+      [ "Transaction ID (any random UUID) for atomicity of the request"
+      , "(if not provided new random one will be generated)"
+      ]
+  , metavar "UUID"
+  , value Nothing
+  ]
 
 
 -- * Parsing command-line arguments

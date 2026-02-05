@@ -2,9 +2,13 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE DerivingStrategies #-}
+{-# LANGUAGE OverloadedRecordDot #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 module MatrixBot.Bot.Jobs.Handlers.SendMessage
   ( sendMessage
+  , MessageEdit (..)
   ) where
 
 import qualified Control.Exception.Safe as E
@@ -34,8 +38,9 @@ sendMessage
   → Maybe Text
   -- ^ Optional HTML-formatted body to be paired with plain text body
   → Text
+  → Maybe MessageEdit
   → m Api.EventResponse
-sendMessage req auth transactionId roomId inReplyTo htmlBody msg = do
+sendMessage req auth transactionId roomId inReplyTo htmlBody msg msgEdit = do
   L.logDebug $ mconcat
     [ "Sending message "
     , maybe mempty (("in reply to " <>) . (<> " ") . pack . show) inReplyTo
@@ -52,6 +57,30 @@ sendMessage req auth transactionId roomId inReplyTo htmlBody msg = do
       roomId
       Api.MRoomMessageTypeOneOf
       transactionId
-      (Api.MRoomMessageContent Api.MTextType msg htmlBody $ fmap Api.InReplyTo inReplyTo)
+      messageContent
 
   response <$ logEventResponse response
+
+  where
+    messageContent =
+      Api.MRoomMessageContent
+        Api.MTextType
+        msg
+        htmlBody
+        (fmap Api.InReplyTo inReplyTo)
+        (fmap toEditApi msgEdit)
+
+    toEditApi (x ∷ MessageEdit) =
+      Api.MessageEdit
+        Api.MTextType
+        x.messageEditNewText
+        x.messageEditNewHtml
+        x.messageEditMessageId
+
+
+data MessageEdit = MessageEdit
+  { messageEditMessageId ∷ T.EventId
+  , messageEditNewText ∷ Text
+  , messageEditNewHtml ∷ Maybe Text
+  }
+  deriving stock (Show, Eq)

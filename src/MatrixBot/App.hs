@@ -42,7 +42,7 @@ import qualified MatrixBot.Auth as Auth
 import qualified MatrixBot.Bot as Bot
 import qualified MatrixBot.Options as O
 import qualified MatrixBot.SharedTypes as T
-import MatrixBot.Bot.Jobs.Handlers.SendMessage (sendMessage)
+import MatrixBot.Bot.Jobs.Handlers.SendMessage (sendMessage, MessageEdit (..))
 import qualified MatrixBot.Bot.Jobs.Queue as BotJobsQueue
 import qualified Control.Lens as Lens
 
@@ -78,6 +78,7 @@ runApp = go where
       O.AppCommandAuth opts → runAuth opts
       O.AppCommandStart opts → runStart opts
       O.AppCommandSendMessage opts → runSendMessage opts
+      O.AppCommandEditMessage opts → runEditMessage opts
 
 
 runAuth
@@ -252,7 +253,7 @@ runSendMessage opts = do
               , pack . show . T.unTransactionId $ txid
               ]
 
-      response ← sendMessage req auth transactionId roomId replyTo htmlMessage message
+      response ← sendMessage req auth transactionId roomId replyTo htmlMessage message Nothing
 
       logDebug "Printing response and transaction ID to stdout…"
 
@@ -262,6 +263,150 @@ runSendMessage opts = do
         }
 
       logDebug "Success!"
+
+
+runEditMessage
+  ∷ (MonadIO m, MonadUnliftIO m, MonadFail m, E.MonadThrow m, ML.MonadLogger m)
+  ⇒ O.EditMessageOptions
+  → m ()
+runEditMessage opts = do
+  logDebug "Running edit message command…"
+
+  let roomId = O.editMessageOptionsRoomId opts
+
+  credentials ∷ Auth.Credentials ← do
+    logDebug $ mconcat
+      [ "Reading and parsing credentials "
+      , (quoted . O.editMessageOptionsCredentialsFile) opts
+      , " file…"
+      ]
+
+    either fail pure =<< liftIO (eitherDecodeFileStrict . O.editMessageOptionsCredentialsFile $ opts)
+
+  message ←
+    case O.editMessageOptionsMessage opts of
+      Left x →
+        (x <$) . logDebug $ mconcat
+          [ "New message body for the message "
+          , (pack . show . O.editMessageOptionsMessageId) opts
+          , " in the room "
+          , (quoted . T.printRoomId) roomId
+          , " was provided as an option argument"
+          ]
+      Right file → do
+        logDebug $ mconcat
+          [ "Reading new message message body for the message "
+          , (pack . show . O.editMessageOptionsMessageId) opts
+          , " in the room "
+          , (quoted . T.printRoomId) roomId
+          , " from ", quoted file, " file…"
+          ]
+        liftIO $ TextIO.readFile file
+
+  htmlMessage ←
+    case O.editMessageOptionsHtmlMessage opts of
+      Nothing → pure Nothing
+      Just (Left x) →
+        (Just x <$) . logDebug $ mconcat
+          [ "New HTML-formatted message body for the message "
+          , (pack . show . O.editMessageOptionsMessageId) opts
+          , " in the room "
+          , (quoted . T.printRoomId) roomId
+          , " was provided as an option argument"
+          ]
+      Just (Right file) → do
+        logDebug $ mconcat
+          [ "Reading new HTML-formatted message body for the message "
+          , (pack . show . O.editMessageOptionsMessageId) opts
+          , " in the room "
+          , (quoted . T.printRoomId) roomId
+          , " from ", quoted file, " file…"
+          ]
+        fmap Just . liftIO $ TextIO.readFile file
+
+  compatMessage ←
+    case O.editMessageOptionsMessageCompat opts of
+      Nothing → pure (compatTextDefaultTemplate message)
+      Just (Left x) →
+        (x <$) . logDebug $ mconcat
+          [ "New old API-compatible message body for the message "
+          , (pack . show . O.editMessageOptionsMessageId) opts
+          , " in the room "
+          , (quoted . T.printRoomId) roomId
+          , " was provided as an option argument"
+          ]
+      Just (Right file) → do
+        logDebug $ mconcat
+          [ "Reading new old API-compatible message message body for the message "
+          , (pack . show . O.editMessageOptionsMessageId) opts
+          , " in the room "
+          , (quoted . T.printRoomId) roomId
+          , " from ", quoted file, " file…"
+          ]
+        liftIO $ TextIO.readFile file
+
+  compatHtmlMessage ←
+    case (O.editMessageOptionsHtmlMessageCompat opts, htmlMessage) of
+      (Nothing, Nothing) → pure Nothing
+      (Nothing, Just newHtmlBody) → (pure . Just . compatHtmlDefaultTemplate) newHtmlBody
+      (Just (Left x), _) →
+        (Just x <$) . logDebug $ mconcat
+          [ "New old API-compatible HTML-formatted message body for the message "
+          , (pack . show . O.editMessageOptionsMessageId) opts
+          , " in the room "
+          , (quoted . T.printRoomId) roomId
+          , " was provided as an option argument"
+          ]
+      (Just (Right file), _) → do
+        logDebug $ mconcat
+          [ "Reading new old API-compatible HTML-formatted message body for the message "
+          , (pack . show . O.editMessageOptionsMessageId) opts
+          , " in the room "
+          , (quoted . T.printRoomId) roomId
+          , " from ", quoted file, " file…"
+          ]
+        fmap Just . liftIO $ TextIO.readFile file
+
+  replyTo ←
+    case O.editMessageOptionsReplyTo opts of
+      Nothing → pure Nothing
+      Just x → (Just x <$) $ logDebug $ mconcat ["Replying to ", (pack . show) x]
+
+  flip MR.runReaderT credentials $
+    Bot.withReqAndAuth (T.EventsTimeout . T.Seconds $ 30) $ \req auth → do
+      transactionId ←
+        case O.editMessageOptionsTransactionId opts of
+          Nothing → do
+            txid ← T.genTransactionId
+            (txid <$) . logDebug $ mconcat
+              [ "No transaction ID was provided in the command-line options, generated new one: "
+              , (pack . show . T.unTransactionId) txid
+              ]
+          Just txid → do
+            (txid <$) . logDebug $ mconcat
+              [ "Using transaction ID provided in the command-line options: "
+              , (pack . show . T.unTransactionId) txid
+              ]
+
+      response ←
+        sendMessage req auth transactionId roomId replyTo compatHtmlMessage compatMessage $
+          Just MessageEdit
+            { messageEditMessageId = O.editMessageOptionsMessageId opts
+            , messageEditNewText = message
+            , messageEditNewHtml = htmlMessage
+            }
+
+      logDebug "Printing response and transaction ID to stdout…"
+
+      liftIO . TextIO.putStrLn . toStrict . encodeToLazyText $ SendMessageResponse
+        { sendMessageResponseTransactionId = transactionId
+        , sendMessageResponseResponse = response
+        }
+
+      logDebug "Success!"
+  where
+    compatTextDefaultTemplate = ("EDIT: " <>)
+    compatHtmlDefaultTemplate = ("<b>EDIT:</b> " <>)
 
 
 -- * Types
