@@ -2,28 +2,43 @@
 
 [Matrix](https://matrix.org) multipurpose bot.
 
-**Work in progress!** It’s in development but it’s supposed to work.
+## What can it do?
 
-## What it can do?
+- **TODO** Support encrypted events/rooms
 
-- [x] Leave multiple reactions under user messages
-      (see `react_to_users` section in [example bot config])
-  - [x] Filter users by their MXIDs (equality check, see `users_filter`)
-  - [x] Filter events by room IDs (equality check, see `rooms_filter`)
-- [x] Reply with a message to media events (uploaded files)
-      (see `reply_to_media` section in [example bot config])
-      which can be useful for posting direct HTTP links to the files
-      in case room history permissions are allowing such direct access
-  - [x] Filter users by their MXIDs (equality check, see `users_filter`)
-  - [x] Filter events by room IDs (equality check, see `rooms_filter`)
-  - [x] Filter events by `msgtype` (equality check, see `msgtype_filter`)
-  - [x] Message is generated using a template allowing dynamic values
-        substitution (see `message_template`)
-  - [x] HTML-formatted message template in addition to the plain text one
-        (see `html_message_template`)
-- [x] Send messages via CLI call
-- [x] Edit messages via CLI call
-- [ ] Work with encrypted events
+- CLI interface.
+
+  Not really a “bot” mode, just abstract command-line interface for Matrix API
+  calls. Can be helpful to implement actual bots on top of that.
+
+  * Send messages via CLI call
+  * Edit messages via CLI call
+
+- Daemon/service
+
+  * Leave multiple reactions under user messages.
+
+    See `react_to_users` section in [example bot config].
+
+    + Filter users by their MXIDs (equality check, see `users_filter`)
+    + Filter events by room IDs (equality check, see `rooms_filter`)
+
+  * Reply with a message to media events (uploaded files).
+
+    See `reply_to_media` section in [example bot config].
+
+    Can be useful for posting direct HTTP links to the files
+    in case room history permissions are allowing such direct access
+    (**UPD: not anymore, after some Synapse update those links stopped
+    working, returning `M_NOT_FOUND` when opening them directly**).
+
+    + Filter users by their MXIDs (equality check, see `users_filter`)
+    + Filter events by room IDs (equality check, see `rooms_filter`)
+    + Filter events by `msgtype` (equality check, see `msgtype_filter`)
+    + Message is generated using a template allowing dynamic values
+      substitution (see `message_template`)
+    + HTML-formatted message template in addition to the plain text one
+      (see `html_message_template`)
 
 ## How to build & run
 
